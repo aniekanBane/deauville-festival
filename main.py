@@ -10,3 +10,7 @@ with open("data/festival.json", encoding="utf-8") as file:
     festival = json.load(file)
 
 print(festival["name"])
+print(festival["first_day"], "-", festival["last_day"])
+print(len(festival["venues"]), "venues", end=", ")
+print(len(festival["artists"]), "artists", end=", ")
+print(len(festival["performances"]), "performances")
