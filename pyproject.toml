@@ -1,7 +1,40 @@
 [project]
 name = "deauville-festival"
 version = "0.1.0"
-description = "Add your description here"
+description = "Deauville Festivasl CSM"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
+
+[tool.mypy]
+strict = true
+exclude = ["\\.venv"]
+
+enable_error_code = [
+    "ignore-without-code", 
+    "explicit-override", 
+    "redundant-self", 
+    "possibly-undefined", 
+    "truthy-bool",
+]
+pretty = true
+
+[tool.ruff.lint]
+select = [
+    "E",        # pycodestyle errors
+    "W",        # pycodestyle warnings
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "S",        # security (bandit)
+    "B",        # flake8-bugbear
+    "C4",       # flake8-comprehensions
+    "FA",       # flake8-future-annotations
+    "G",        # flake8-logging-format
+    "SIM",      # flake8-simplify
+    "PERF",     # perflint
+    "UP",       # pyupgrades
+]
+ignore = [
+    "E501",     # Line too long, handled by `black`
+]
