@@ -205,7 +205,7 @@ async function showArtistPage() {
     for (const performance of artist.performances) {
       cards.push(
         `<h3 class="muted">${formatDay(performance.festival_day)}</h3>` +
-          cardHtml(performance),
+        cardHtml(performance),
       );
     }
     document.getElementById("cards").innerHTML =
