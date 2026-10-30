@@ -1,7 +1,7 @@
 import unicodedata
 from datetime import date, datetime
 
-import errors
+from deauville_festival import errors
 
 
 def get_slug(name: str) -> str:
@@ -35,9 +35,14 @@ def datetime_from_str(date_time_str: str) -> datetime:
         raise errors.InvalidDateTimeFormatError(date_time_str) from None
 
 
+def datetime_to_str(dt: datetime) -> str:
+    """Converts a datetime object to a string in the format YYYY-MM-DDTHH:MM."""
+    return dt.strftime("%Y-%m-%dT%H:%M")
+
+
 def guard_empty_str(value: str, label: str) -> str:
     """Raises a `ValueError` if the string is empty or contains only whitespace."""
     value = value.strip()
     if not value:
-        raise ValueError(f"Value for {label} cannot be empty.")
+        raise errors.InvalidError(f"Value for {label} cannot be empty.")
     return value
