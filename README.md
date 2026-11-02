@@ -5,7 +5,7 @@ It provides:
 
 - a domain model for venues, artists, and solo, lineup, and workshop
   performances;
-- a JSON-backed persistence layer;
+- JSON storage for the CLI and SQLite storage for the web application;
 - a command-line interface for programme and festival administration;
 - a FastAPI application serving the public website and admin interface;
 - validation and tests for the festival's scheduling and participation rules.
@@ -87,7 +87,7 @@ violates a festival rule.
 Start the development server with:
 
 ```bash
-uv run uvicorn deauville_festival.api.app:app --reload
+uv run uvicorn deauville_festival.api.app:app
 ```
 
 Then open:
@@ -100,7 +100,11 @@ The HTTP API is documented in [API.md](API.md). Read routes expose festival
 information, venues, artists, performances, the programme, and the
 performances currently on stage. Admin routes add artists, create/update/delete
 performances, and register workshop participants. Successful changes are
-persisted to the JSON data file immediately.
+persisted to [data/festival.db](data/festival.db) immediately.
+
+On the first FastAPI startup, the application creates the SQLite schema and
+seeds the database from [data/festival.json](data/festival.json). Existing
+database contents are preserved on later starts.
 
 ## Domain rules
 
@@ -132,7 +136,7 @@ Domain errors are converted by the API to the documented 404, 409, 422, and
 src/deauville_festival/
 ├── models.py       Domain entities and performance rules
 ├── festival.py     FestivalManager and cross-entity validation
-├── storage.py      Storage abstraction and JSON serialization
+├── storage/        Storage abstraction, JSON/SQLite backends, and SQL schema
 ├── errors.py       Domain error types
 ├── helpers.py      Input normalization and date/time helpers
 ├── cli.py          Command-line interface
@@ -141,7 +145,7 @@ src/deauville_festival/
     ├── router.py   Public and admin API routes
     ├── schemas.py  Pydantic request/response schemas
     └── dependencies.py
-                    JSON storage and FestivalManager dependencies
+                    SQLite storage and FestivalManager dependencies
 ```
 
 The model classes in `models.py` validate rules intrinsic to one entity.
@@ -151,8 +155,8 @@ than modifying storage directly. `DataStorage` is an abstraction, so another
 backend can be added without changing the domain model or HTTP routes.
 
 The `web/public/` and `web/admin/` directories contain the static frontends.
-The [tests/](tests/) directory contains model, storage, CLI, schema, and route
-tests.
+The [tests/](tests/) directory contains model, modular JSON/SQLite storage,
+CLI, schema, and route tests.
 
 ## Testing
 
@@ -162,8 +166,9 @@ Run the complete test suite:
 uv run pytest
 ```
 
-The test configuration is in `pyproject.toml`; tests use an isolated copy of
-the festival JSON file for API mutations.
+The test configuration is in `pyproject.toml`. Storage tests are grouped in
+[tests/storage/](tests/storage/), and API tests use an isolated SQLite database
+seeded through the FastAPI lifespan.
 
 ## Build and deployment notes
 
@@ -178,6 +183,8 @@ The build currently succeeds and produces a source distribution and wheel in
 expects the repository-level `data/` and `web/` directories at runtime:
 
 - the CLI reads and writes `data/festival.json`;
+- FastAPI reads and writes `data/festival.db`, seeding it from
+  `data/festival.json` when it is empty;
 - FastAPI serves `web/public/` and `web/admin/`.
 
 Therefore, run the CLI and web server from the repository root after
@@ -199,10 +206,12 @@ Implemented:
 
 - the complete festival domain model and validation;
 - JSON loading and saving;
+- SQLite schema, persistence, and initial JSON seeding;
 - CLI programme, artist, venue, now-playing, add, and cancel commands;
 - FastAPI read and admin routes described in [API.md](API.md);
 - public and admin static websites;
 - automated tests for helpers, models, storage, CLI, schemas, and routes.
 
-The application currently uses JSON file storage. A database-backed storage
-implementation has not been added.
+The CLI intentionally continues to use JSON storage, while the FastAPI
+application uses SQLite storage. The database is generated at runtime and
+should not be committed as source data.
