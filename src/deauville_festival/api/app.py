@@ -1,21 +1,37 @@
+import contextlib
+from collections.abc import AsyncGenerator
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from scalar_fastapi import add_scalar_reference
 
 from deauville_festival import errors
+from deauville_festival.api import dependencies
 from deauville_festival.api.router import router
+from deauville_festival.storage import JSONFileStorage, SQLiteStorage
+
+
+@contextlib.asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+    database = dependencies.get_storage()
+    if isinstance(database, SQLiteStorage) and not database.is_initialized():
+        source = dependencies.DATA_PATH.with_name("festival.json")
+        database.save(JSONFileStorage(source).load())
+    yield
+
 
 app = FastAPI(
     title="Deauville Festival API",
     docs_url=None,
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 
 @app.exception_handler(errors.FestivalError)
 async def festival_exception_handler(
-    request: Request, exc: errors.FestivalError
+    _: Request, exc: errors.FestivalError
 ) -> JSONResponse:
     match exc:
         case errors.NotFoundError():
