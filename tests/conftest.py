@@ -1,4 +1,3 @@
-import shutil
 from pathlib import Path
 
 import pytest
@@ -11,14 +10,17 @@ _SOURCE_DATA_PATH = Path(__file__).parent.parent / "data" / "festival.json"
 
 @pytest.fixture
 def test_data_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Copies the festival data file into a temporary directory and patches `dependencies.DATA_PATH`."""
-    temp_data_file = tmp_path / "festival.json"
-    shutil.copy(_SOURCE_DATA_PATH, temp_data_file)
-    monkeypatch.setattr(dependencies, "DATA_PATH", temp_data_file)
-    return temp_data_file
+    """Returns an isolated database path and configures its seed source."""
+    database_path = tmp_path / "festival.db"
+    monkeypatch.setattr(dependencies, "DATA_PATH", database_path)
+    database_path.with_name("festival.json").write_bytes(
+        _SOURCE_DATA_PATH.read_bytes()
+    )
+    return database_path
 
 
 @pytest.fixture
-def client(test_data_path: Path) -> TestClient:
-    """Returns a FastAPI `TestClient` backed by the isolated temporary data file."""
-    return TestClient(app.app)
+def client(test_data_path: Path):
+    """Returns a FastAPI client whose lifespan initializes the isolated database."""
+    with TestClient(app.app) as test_client:
+        yield test_client
