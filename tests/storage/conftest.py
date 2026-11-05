@@ -14,6 +14,7 @@ from deauville_festival.models import (
 
 @pytest.fixture
 def sample_festival_data() -> dict[str, Any]:
+    """Returns a sample festival data dictionary."""
     return {
         "name": "Deauville Festival du Rire",
         "first_day": date(2027, 6, 10),

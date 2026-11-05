@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from deauville_festival import storage
+from deauville_festival.models import Artist
 
 
 class TestAddArtistSuccess:
@@ -116,13 +117,15 @@ class TestAddArtistValidation:
         assert response.status_code == 422
 
     def test_name_exceeding_max_length_returns_422(self, client: TestClient) -> None:
-        response = client.post("/api/artists", json={"name": "A" * 65})
+        response = client.post(
+            "/api/artists", json={"name": "A" * (Artist.NAME_MAX_LEN + 1)}
+        )
         assert response.status_code == 422
 
     def test_bio_exceeding_max_length_returns_422(self, client: TestClient) -> None:
         response = client.post(
             "/api/artists",
-            json={"name": "Valid Name", "bio": "B" * 256},
+            json={"name": "Valid Name", "bio": "B" * (Artist.BIO_MAX_LEN + 1)},
         )
         assert response.status_code == 422
 
@@ -133,7 +136,7 @@ class TestAddArtistValidation:
             "/api/artists",
             json={
                 "name": "Valid Name",
-                "photo_url": "https://example.com/" + ("p" * 190),
+                "photo_url": "p" * (Artist.PHOTO_URL_MAX_LEN + 1),
             },
         )
         assert response.status_code == 422

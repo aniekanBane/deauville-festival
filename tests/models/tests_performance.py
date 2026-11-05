@@ -17,7 +17,6 @@ class TestPerformanceBase:
     def test_cannot_instantiate_abstract_performance_directly(self) -> None:
         with pytest.raises(TypeError):
             Performance(  # type: ignore[abstract]
-                kind="solo",
                 title="Abstract Show",
                 venue="le-kiosque",
                 start=datetime(2027, 6, 10, 20, 0),
@@ -73,7 +72,7 @@ class TestPerformanceBase:
                 artist="elodie-marchal",
             )
 
-        assert str(exc_info.value) == "Duration must be between 1 and 360 minutes."
+        assert str(exc_info.value) == "Performance duration must be between 1 and 360."
 
     def test_id_property(self) -> None:
         perf = SoloPerformance(
@@ -378,7 +377,7 @@ class TestWorkshopPerformance:
         assert perf.kind == "workshop"
         assert perf.teacher == "elodie-marchal"
         assert perf.participants == []
-        assert perf.remaining_capacity == 15
+        assert perf.places_left == 15
 
     @pytest.mark.parametrize("invalid_max", [-1, 0])
     def test_non_positive_max_participants_raises_invalid_error(
@@ -394,7 +393,10 @@ class TestWorkshopPerformance:
                 max_participants=invalid_max,
             )
 
-        assert str(exc_info.value) == "Max participants must be positive."
+        assert (
+            str(exc_info.value)
+            == f"Maximum participants must be at least {WorkshopPerformance.MAX_PARTICIPANTS_MIN_VALUE}."
+        )
 
     def test_duplicate_initial_participants_raise_invalid_error(self) -> None:
         with pytest.raises(errors.InvalidError) as exc_info:
@@ -434,11 +436,11 @@ class TestWorkshopPerformance:
         )
         perf.add_participant("Camille R.")
         assert perf.participants == ["Camille R."]
-        assert perf.remaining_capacity == 1
+        assert perf.places_left == 1
 
         perf.add_participant("Lucas M.")
         assert perf.participants == ["Camille R.", "Lucas M."]
-        assert perf.remaining_capacity == 0
+        assert perf.places_left == 0
 
     @pytest.mark.parametrize(
         "duplicate_name", ["Camille R.", "camille r.", "CAMILLE R."]

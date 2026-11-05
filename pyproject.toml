@@ -1,6 +1,6 @@
 [project]
 name = "deauville-festival"
-version = "0.1.0"
+version = "1.2.0"
 description = "Deauville Festivasl CSM"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -11,8 +11,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mypy>=2.4.1",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
+    "ruff>=0.17.3",
 ]
 
 [project.scripts]
@@ -46,7 +48,7 @@ disable_error_code = ["no-untyped-def"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-python_files = ["test_*.py", "*_test.py", "tests_*.py"]
+python_files = ["test_*.py", "*_test.py", "tests_*.py", "*_tests.py"]
 
 [tool.ruff.lint]
 select = [

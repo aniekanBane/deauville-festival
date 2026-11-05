@@ -116,8 +116,14 @@ def on_now(manager: FestivalManageDep, at: datetime | None = None) -> NowRespons
 
     return NowResponse(
         at=moment,
-        now_playing=tuple(manager.get_performance_details(p) for p in now_playing),
-        up_next=tuple(manager.get_performance_details(p) for p in up_next),
+        now_playing=[
+            PerformanceResponse.model_validate(manager.get_performance_details(p))
+            for p in now_playing
+        ],
+        up_next=[
+            PerformanceResponse.model_validate(manager.get_performance_details(p))
+            for p in up_next
+        ],
     )
 
 
@@ -148,13 +154,14 @@ def add_artist(request: AddArtistRequest, manager: FestivalManageDep) -> Any:
 )
 def add_performance(request: PerformanceRequest, manager: FestivalManageDep) -> Any:
     """Adds a new performance to the festival."""
+    performance_data = request.model_dump(exclude={"kind"})
     match request.kind:
         case "solo":
-            performance = SoloPerformance(**request.model_dump())
+            performance = SoloPerformance(**performance_data)
         case "lineup":
-            performance = LineupPerformance(**request.model_dump())
+            performance = LineupPerformance(**performance_data)
         case "workshop":
-            performance = WorkshopPerformance(**request.model_dump())
+            performance = WorkshopPerformance(**performance_data)
 
     performance = manager.add_performance(performance)
     return PerformanceInResponse.model_validate(performance, from_attributes=True)
@@ -171,13 +178,14 @@ def update_performance(
     performance_id: str, request: PerformanceRequest, manager: FestivalManageDep
 ) -> Any:
     """Updates an existing performance by its ID."""
+    performance_data = request.model_dump(exclude={"kind"})
     match request.kind:
         case "solo":
-            performance = SoloPerformance(**request.model_dump())
+            performance = SoloPerformance(**performance_data)
         case "lineup":
-            performance = LineupPerformance(**request.model_dump())
+            performance = LineupPerformance(**performance_data)
         case "workshop":
-            performance = WorkshopPerformance(**request.model_dump())
+            performance = WorkshopPerformance(**performance_data)
     performance = manager.update_performance(performance_id, performance)
     return PerformanceInResponse.model_validate(
         manager.get_performance_details(performance), from_attributes=True

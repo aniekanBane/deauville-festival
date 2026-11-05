@@ -5,7 +5,7 @@ It provides:
 
 - a domain model for venues, artists, and solo, lineup, and workshop
   performances;
-- JSON storage for the CLI and SQLite storage for the web application;
+- SQLite storage shared by the CLI and web application;
 - a command-line interface for programme and festival administration;
 - a FastAPI application serving the public website and admin interface;
 - validation and tests for the festival's scheduling and participation rules.
@@ -64,7 +64,7 @@ uv run deauville programme 2027-06-11
 uv run deauville artists
 
 # Show one artist and their performances
-uv run deauville artists --find nora-lebrun
+uv run deauville artists --focus nora-lebrun
 
 # Add an artist interactively
 uv run deauville artists --add
@@ -87,7 +87,7 @@ violates a festival rule.
 Start the development server with:
 
 ```bash
-uv run uvicorn deauville_festival.api.app:app
+uv run deauville serve
 ```
 
 Then open:
@@ -102,9 +102,12 @@ performances currently on stage. Admin routes add artists, create/update/delete
 performances, and register workshop participants. Successful changes are
 persisted to [data/festival.db](data/festival.db) immediately.
 
-On the first FastAPI startup, the application creates the SQLite schema and
-seeds the database from [data/festival.json](data/festival.json). Existing
-database contents are preserved on later starts.
+The application uses [data/festival.db](data/festival.db) as its runtime
+database. If the database is empty, the CLI seeds it once from
+[data/festival.json](data/festival.json). Existing database contents are
+preserved on later starts. The API receives the same `DataStorage` instance
+when it is created, while each request builds a `FestivalManager` from that
+storage.
 
 ## Domain rules
 
@@ -114,8 +117,7 @@ the API, or a test:
 - names are trimmed and cannot be empty;
 - artist and venue names produce normalized ASCII slugs;
 - performance IDs combine the venue slug and local start time;
-- performances last between 1 and 360 minutes and must belong to a festival
-  day;
+- performances last between 1 and 360 minutes and must belong to a festival day;
 - a festival day runs from 06:00 until 05:59 the following day;
 - venues and artists require 30 minutes between performances;
 - venues, artists, and referenced performances must exist;
@@ -136,7 +138,7 @@ Domain errors are converted by the API to the documented 404, 409, 422, and
 src/deauville_festival/
 ├── models.py       Domain entities and performance rules
 ├── festival.py     FestivalManager and cross-entity validation
-├── storage/        Storage abstraction, JSON/SQLite backends, and SQL schema
+├── storage/        Storage abstraction, JSON/SQLite backends, seeding, and SQL schema
 ├── errors.py       Domain error types
 ├── helpers.py      Input normalization and date/time helpers
 ├── cli.py          Command-line interface
@@ -145,7 +147,7 @@ src/deauville_festival/
     ├── router.py   Public and admin API routes
     ├── schemas.py  Pydantic request/response schemas
     └── dependencies.py
-                    SQLite storage and FestivalManager dependencies
+                    storage and FestivalManager dependencies
 ```
 
 The model classes in `models.py` validate rules intrinsic to one entity.
@@ -155,20 +157,45 @@ than modifying storage directly. `DataStorage` is an abstraction, so another
 backend can be added without changing the domain model or HTTP routes.
 
 The `web/public/` and `web/admin/` directories contain the static frontends.
-The [tests/](tests/) directory contains model, modular JSON/SQLite storage,
-CLI, schema, and route tests.
+The [tests/](tests/) directory contains model, JSON/SQLite storage, CLI,
+schema, and route tests.
 
 ## Testing
 
 Run the complete test suite:
 
 ```bash
-uv run pytest
+uv run pytest --no-cov
 ```
 
 The test configuration is in `pyproject.toml`. Storage tests are grouped in
-[tests/storage/](tests/storage/), and API tests use an isolated SQLite database
-seeded through the FastAPI lifespan.
+[tests/storage/](tests/storage/), and API tests use isolated SQLite databases
+seeded explicitly by their fixtures.
+
+The repository currently contains 273 tests covering helpers, models, JSON and
+SQLite storage, CLI commands, request schemas, and API routes. The optional
+development tools can also be run locally:
+
+```bash
+uv run ruff check .
+uv run mypy src
+```
+
+## Continuous integration
+
+GitHub Actions runs the workflow in
+[.github/workflows/ci.yml](.github/workflows/ci.yml) for pushes to `main`,
+pull requests, and manual dispatches. It:
+
+1. uses the Python version in [.python-version](.python-version);
+2. installs the pinned uv version and caches dependencies;
+3. runs `uv sync --locked --dev`;
+4. runs `uv run pytest --no-cov`;
+5. verifies that `uv build` succeeds.
+
+Documentation-only changes do not trigger CI automatically because the
+workflow ignores Markdown and `docs/` changes. CI can still be started
+manually from the workflow's **Run workflow** action.
 
 ## Build and deployment notes
 
@@ -182,9 +209,8 @@ The build currently succeeds and produces a source distribution and wheel in
 `dist/`. The wheel packages `src/deauville_festival`, but the application also
 expects the repository-level `data/` and `web/` directories at runtime:
 
-- the CLI reads and writes `data/festival.json`;
-- FastAPI reads and writes `data/festival.db`, seeding it from
-  `data/festival.json` when it is empty;
+- the CLI and FastAPI both read and write `data/festival.db`;
+- `data/festival.json` is available as sample/import data only;
 - FastAPI serves `web/public/` and `web/admin/`.
 
 Therefore, run the CLI and web server from the repository root after
@@ -193,7 +219,7 @@ provide the sample data or static websites. To run a built artifact, copy
 `data/` and `web/` alongside the working directory and launch the application
 from that directory, or package those resources as part of a future release.
 
-If commands cannot find `data/festival.json` or the static directories, check
+If commands cannot find `data/festival.db` or the static directories, check
 that:
 
 1. Python 3.12 or newer is selected;
@@ -205,13 +231,14 @@ that:
 Implemented:
 
 - the complete festival domain model and validation;
-- JSON loading and saving;
-- SQLite schema, persistence, and initial JSON seeding;
+- JSON loading and saving for import/sample data;
+- SQLite schema, persistence, and initial seeding;
 - CLI programme, artist, venue, now-playing, add, and cancel commands;
 - FastAPI read and admin routes described in [API.md](API.md);
 - public and admin static websites;
 - automated tests for helpers, models, storage, CLI, schemas, and routes.
 
-The CLI intentionally continues to use JSON storage, while the FastAPI
-application uses SQLite storage. The database is generated at runtime and
-should not be committed as source data.
+The CLI and FastAPI application both use SQLite storage. The JSON file is
+kept as portable sample/import data and is used only to seed an empty
+database. The database is generated or provisioned separately and should not
+be committed as source data.

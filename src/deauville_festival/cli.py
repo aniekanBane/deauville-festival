@@ -1,13 +1,14 @@
 import argparse
 import sys
-from pathlib import Path
 
-from deauville_festival import errors, helpers
+from deauville_festival import config, errors, helpers
 from deauville_festival.festival import FestivalManager
-from deauville_festival.models import Artist, SoloPerformance
-from deauville_festival.storage import JSONFileStorage
-
-_FILE_PATH = Path("data/festival.json")
+from deauville_festival.models import (
+    Artist,
+    Performance,
+    SoloPerformance,
+)
+from deauville_festival.storage import SQLiteStorage, seed_database
 
 
 def display_festival_info(manager: FestivalManager) -> None:
@@ -35,14 +36,14 @@ def display_venues(manager: FestivalManager) -> None:
 
 def add_artist(manager: FestivalManager) -> None:
     """Prompts for details and adds a new artist."""
-    name = helpers.guard_empty_str(input("Name: "), "name")
-    bio = input("Bio: ")
-    photo_url = input("Photo URL: ")
+    name = Artist.validate_name(input("Name: "))
+    bio = Artist.validate_bio(input("Bio: "))
+    photo_url = Artist.validate_photo_url(input("Photo URL: "))
 
     artist = Artist(name=name, bio=bio, photo_url=photo_url)
 
     manager.add_artist(artist)
-    print(f"Added: artist {artist.name} ({artist.slug}).")
+    print(f"Added artist: {str(artist)}.")
 
 
 def display_artists(manager: FestivalManager) -> None:
@@ -164,14 +165,15 @@ def parse_duration(duration_str: str) -> int:
 
 def add_performance(manager: FestivalManager) -> None:
     """Prompts for details and adds a solo performance to the festival."""
-    title = helpers.guard_empty_str(input("Title: "), "title")
-    artist_slug = helpers.guard_empty_str(input("Artist (slug): "), "artist slug")
-    venue_slug = helpers.guard_empty_str(input("Venue (slug): "), "venue slug")
+    title = Performance.validate_title(input("Title: "))
+    artist_slug = SoloPerformance.validate_artist(input("Artist (slug): "))
+    venue_slug = Performance.validate_venue(input("Venue (slug): "))
     start = helpers.datetime_from_str(input("Start (YYYY-MM-DDTHH:MM): "))
-    duration = parse_duration(input("Duration (minutes): "))
+    duration = Performance.validate_duration_minutes(
+        parse_duration(input("Duration (minutes): "))
+    )
 
     performance = SoloPerformance(
-        kind="solo",
         title=title,
         artist=artist_slug,
         venue=venue_slug,
@@ -217,7 +219,7 @@ def create_parser() -> argparse.ArgumentParser:
         "artists", help="Display information about the artists."
     )
     artists_parser.add_argument("--add", action="store_true", help="Add a new artist.")
-    artists_parser.add_argument("--find", help="The slug of the artist.")
+    artists_parser.add_argument("--focus", help="The slug of the artist.")
 
     now_parser = subparsers.add_parser(
         "now", help="Display the performances happening now."
@@ -235,6 +237,8 @@ def create_parser() -> argparse.ArgumentParser:
         help="The ID of the performance (venue slug-start(YYYY-MM-DD-HHMM)).",
     )
 
+    subparsers.add_parser("serve", help="Start the API server.")
+
     return parser
 
 
@@ -243,29 +247,35 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        storage_backend = JSONFileStorage(_FILE_PATH)
-        manager = FestivalManager.from_storage(storage_backend)
+        storage_backend = SQLiteStorage(config.DATA_DIR / "festival.db")
+        seed_database(storage_backend)
+
+        festival_manager = FestivalManager.from_storage(storage_backend)
 
         match args.command:
             case None:
-                display_festival_info(manager)
+                display_festival_info(festival_manager)
             case "venues":
-                display_venues(manager)
+                display_venues(festival_manager)
             case "programme":
-                display_programme(args.day, manager)
+                display_programme(args.day, festival_manager)
             case "artists":
                 if args.add:
-                    add_artist(manager)
-                elif args.find:
-                    display_artist_info(args.find, manager)
+                    add_artist(festival_manager)
+                elif args.focus:
+                    display_artist_info(args.focus, festival_manager)
                 else:
-                    display_artists(manager)
+                    display_artists(festival_manager)
             case "now":
-                display_performances_now(args.moment, manager)
+                display_performances_now(args.moment, festival_manager)
             case "add":
-                add_performance(manager)
+                add_performance(festival_manager)
             case "cancel":
-                cancel_performance(args.id, manager)
+                cancel_performance(args.id, festival_manager)
+            case "serve":
+                from deauville_festival.api.app import run_server
+
+                run_server(storage_backend)
             case _:
                 parser.print_help()
         return 0

@@ -55,7 +55,7 @@ class TestLineupPerformanceRequestValidation:
                 acts=acts,
             )
 
-        assert "Lineup performances must have at least two acts." in str(exc_info.value)
+        assert "List should have at least 2 items" in str(exc_info.value)
 
     @pytest.mark.parametrize(
         "duplicate_acts",
@@ -116,8 +116,8 @@ class TestLineupPerformanceRequestValidation:
             )
 
         expected_msg = (
-            f"Lineup performances must be at least {expected_min} minutes long "
-            f"for {len(acts)} acts. 10 minutes per act, plus 3 minutes between acts."
+            f"Duration must be at least {expected_min} minutes long for {len(acts)} acts. "
+            f"10 minutes per act, plus 3 minutes between acts."
         )
         assert expected_msg in str(exc_info.value)
 

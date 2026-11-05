@@ -29,7 +29,7 @@ class TestVenueInit:
     def test_zero_capacity_raises_invalid_error(self) -> None:
         with pytest.raises(errors.InvalidError) as exc_info:
             Venue(name="Open Air", capacity=0, address="Beach")
-        assert str(exc_info.value) == "Capacity must be a positive integer."
+        assert str(exc_info.value) == "Venue capacity must be at least 1."
 
     @pytest.mark.parametrize("invalid_capacity", [-1, -10, -500])
     def test_non_positive_capacity_raises_invalid_error(
@@ -42,7 +42,7 @@ class TestVenueInit:
                 address="Promenade des Planches",
             )
 
-        assert str(exc_info.value) == "Capacity must be a positive integer."
+        assert str(exc_info.value) == "Venue capacity must be at least 1."
 
     def test_positional_arguments_raise_type_error(self) -> None:
         with pytest.raises(TypeError):

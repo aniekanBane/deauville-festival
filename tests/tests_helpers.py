@@ -157,4 +157,78 @@ class TestGuardEmptyStr:
         with pytest.raises(errors.InvalidError) as exc_info:
             helpers.guard_empty_str(empty_value, "venue slug")
 
-        assert str(exc_info.value) == "Value for venue slug cannot be empty."
+        assert str(exc_info.value) == "venue slug cannot be empty."
+
+    def test_custom_error_message_is_used(self) -> None:
+        with pytest.raises(errors.InvalidError) as exc_info:
+            helpers.guard_empty_str("", "title", "A title is required.")
+
+        assert str(exc_info.value) == "A title is required."
+
+
+class TestGuardStrMaxLen:
+    """Tests for `helpers.guard_str_max_len`."""
+
+    @pytest.mark.parametrize(
+        ("value", "max_len"),
+        [("", 0), ("abc", 3), ("abc", 4)],
+    )
+    def test_valid_string_returns_original_value(
+        self, value: str, max_len: int
+    ) -> None:
+        assert helpers.guard_str_max_len(value, max_len, "title") == value
+
+    def test_string_longer_than_limit_raises_invalid_error(self) -> None:
+        with pytest.raises(errors.InvalidError) as exc_info:
+            helpers.guard_str_max_len("abcd", 3, "Title")
+
+        assert str(exc_info.value) == "Title cannot be longer than 3 characters."
+
+    def test_custom_error_message_is_used(self) -> None:
+        with pytest.raises(errors.InvalidError) as exc_info:
+            helpers.guard_str_max_len("abcd", 3, "Title", "Title is too long.")
+
+        assert str(exc_info.value) == "Title is too long."
+
+
+class TestGuardValueGreaterThan:
+    """Tests for `helpers.guard_value_greater_than`."""
+
+    @pytest.mark.parametrize("value", [1, 10])
+    def test_value_at_or_above_minimum_is_returned(self, value: int) -> None:
+        assert helpers.guard_value_greater_than(value, 1, "capacity") == value
+
+    def test_value_below_minimum_raises_invalid_error(self) -> None:
+        with pytest.raises(errors.InvalidError) as exc_info:
+            helpers.guard_value_greater_than(0, 1, "Capacity")
+
+        assert str(exc_info.value) == "Capacity must be at least 1."
+
+    def test_custom_error_message_is_used(self) -> None:
+        with pytest.raises(errors.InvalidError) as exc_info:
+            helpers.guard_value_greater_than(
+                0, 1, "Capacity", "Capacity must be positive."
+            )
+
+        assert str(exc_info.value) == "Capacity must be positive."
+
+
+class TestGuardValueRange:
+    """Tests for `helpers.guard_value_range`."""
+
+    @pytest.mark.parametrize("value", [1, 5, 10])
+    def test_value_inside_or_at_range_is_returned(self, value: int) -> None:
+        assert helpers.guard_value_range(value, 10, 1, "age") == value
+
+    @pytest.mark.parametrize("value", [0, 11])
+    def test_value_outside_range_raises_invalid_error(self, value: int) -> None:
+        with pytest.raises(errors.InvalidError) as exc_info:
+            helpers.guard_value_range(value, 10, 1, "Age")
+
+        assert str(exc_info.value) == "Age must be between 1 and 10."
+
+    def test_custom_error_message_is_used(self) -> None:
+        with pytest.raises(errors.InvalidError) as exc_info:
+            helpers.guard_value_range(11, 10, 1, "Age", "Invalid age.")
+
+        assert str(exc_info.value) == "Invalid age."

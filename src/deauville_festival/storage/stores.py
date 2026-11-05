@@ -6,7 +6,7 @@ import sqlite3
 import typing
 from pathlib import Path
 
-from deauville_festival import helpers
+from deauville_festival import errors, helpers
 from deauville_festival.models import (
     Artist,
     LineupPerformance,
@@ -153,12 +153,12 @@ class SQLiteStorage(DataStorage):
                     participants=json.loads(self._required_column(row, "participants")),
                 )
             case _:
-                raise ValueError(f"Unknown performance kind: {row['kind']!r}.")
+                raise errors.StorageError(f"Unknown performance kind: {row['kind']!r}.")
 
     def _required_column(self, row: sqlite3.Row, column: str) -> typing.Any:
         value = row[column]
         if value is None:
-            raise ValueError(
+            raise errors.StorageError(
                 f"Performance is missing required column '{column!r}' for kind {row['kind']!r}."
             )
         return value
@@ -237,7 +237,7 @@ class SQLiteStorage(DataStorage):
                         ),
                     )
                 case _:
-                    raise ValueError(
+                    raise errors.StorageError(
                         f"Unknown performance kind: {type(performance).__name__}."
                     )
 
@@ -258,10 +258,9 @@ class JSONFileStorage(DataStorage):
                     json.load(f, object_hook=self._festival_data_json_decoder),
                 )
         except FileNotFoundError:
-            print(f"File not found: {self._path}.")
-            raise
+            raise errors.StorageError(f"File not found: {self._path}.") from None
         except json.JSONDecodeError as e:
-            raise ValueError(
+            raise errors.StorageError(
                 f"Invalid JSON in file: {self._path} (line {e.lineno})."
             ) from None
 
@@ -307,11 +306,12 @@ class JSONFileStorage(DataStorage):
             **performance,
             "start": helpers.datetime_from_str(performance["start"]),
         }
+        performance_data.pop("kind", None)  # Remove 'kind' from the data dictionary
         try:
             kind = str(performance.get("kind"))
             performance_class = performance_classes[kind]
         except KeyError:
-            raise ValueError(
+            raise errors.StorageError(
                 f"Unknown performance kind: {performance.get('kind')!r}."
             ) from None
         return performance_class(**performance_data)
@@ -324,7 +324,10 @@ class FestivalDataJSONEncoder(json.JSONEncoder):
     @typing.override
     def default(self, o: object) -> typing.Any:
         if dataclasses.is_dataclass(o) and not isinstance(o, type):
-            return dataclasses.asdict(o)
+            data = dataclasses.asdict(o)
+            if isinstance(o, Performance):
+                data["kind"] = o.kind
+            return data
 
         if isinstance(o, datetime.datetime):
             return helpers.datetime_to_str(o)
