@@ -1,23 +1,24 @@
-import shutil
 from datetime import date
 from pathlib import Path
 
 import pytest
 
-from deauville_festival import cli, errors, storage
+from deauville_festival import cli, config, errors, storage
 from deauville_festival.festival import FestivalManager
 from deauville_festival.models import Artist, SoloPerformance, Venue
 
-_SOURCE_DATA_PATH = Path(__file__).parent.parent.parent / "data" / "festival.json"
+_SOURCE_DATA_PATH = config.DATA_DIR / "festival.json"
 
 
 @pytest.fixture
 def cli_data_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Copies the festival JSON to a temporary directory and patches `cli._FILE_PATH`."""
-    temp_file = tmp_path / "festival.json"
-    shutil.copy(_SOURCE_DATA_PATH, temp_file)
-    monkeypatch.setattr(cli, "_FILE_PATH", temp_file)
-    return temp_file
+    """Creates an isolated SQLite database and patches the CLI data directory."""
+    database_path = tmp_path / "festival.db"
+    storage.SQLiteStorage(database_path).save(
+        storage.JSONFileStorage(_SOURCE_DATA_PATH).load()
+    )
+    monkeypatch.setattr(cli.config, "DATA_DIR", tmp_path)
+    return database_path
 
 
 @pytest.fixture
@@ -127,7 +128,7 @@ class TestDisplayArtists:
     ) -> None:
         monkeypatch.setattr(
             "sys.argv",
-            ["deauville-festival", "artists", "--find", "paul-kerbrat"],
+            ["deauville-festival", "artists", "--focus", "paul-kerbrat"],
         )
 
         exit_code = cli.main()
@@ -160,7 +161,7 @@ class TestDisplayArtists:
     ) -> None:
         monkeypatch.setattr(
             "sys.argv",
-            ["deauville-festival", "artists", "--find", "unknown-artist"],
+            ["deauville-festival", "artists", "--focus", "unknown-artist"],
         )
 
         exit_code = cli.main()
@@ -300,9 +301,9 @@ class TestAddArtistAndPerformanceCli:
 
         assert exit_code == 0
         out = capsys.readouterr().out
-        assert "Added: artist Claire Dumont (claire-dumont)." in out
+        assert "Added artist: Claire Dumont (claire-dumont)." in out
         saved_slugs = {
-            a.slug for a in storage.JSONFileStorage(cli_data_path).load()["artists"]
+            a.slug for a in storage.SQLiteStorage(cli_data_path).load()["artists"]
         }
         assert "claire-dumont" in saved_slugs
 
@@ -342,7 +343,7 @@ class TestAddArtistAndPerformanceCli:
             in out
         )
         saved_ids = {
-            p.id for p in storage.JSONFileStorage(cli_data_path).load()["performances"]
+            p.id for p in storage.SQLiteStorage(cli_data_path).load()["performances"]
         }
         assert "la-cabane-2027-06-10-1400" in saved_ids
 

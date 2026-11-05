@@ -1,0 +1,14 @@
+[run]
+source = src
+omit = */tests/*
+
+[report]
+exclude_also = 
+    def __repr__
+    if self\.debug
+    raise NotImplementedError
+    if __name__ == .__main__.
+    @(abc\.)abstractmethod
+
+[html]
+directory = .coverage_html

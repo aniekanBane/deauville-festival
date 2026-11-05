@@ -16,6 +16,8 @@ from deauville_festival.storage import (
 
 
 class TestJSONFileStorage:
+    """ "Tests suite for the `JSONFileStorage` class."""
+
     def test_load_valid_festival_json(self, tmp_path: Path) -> None:
         file_path = tmp_path / "festival.json"
         file_path.write_text(
@@ -52,37 +54,31 @@ class TestJSONFileStorage:
         assert loaded["venues"][0].slug == "le-kiosque"
         assert loaded["artists"][0].slug == "elodie-marchal"
 
-    def test_load_missing_file_prints_message_and_raises(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_load_missing_file_raises_storage_error(self, tmp_path: Path) -> None:
         missing_path = tmp_path / "missing.json"
 
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(
+            errors.StorageError, match=f"File not found: {missing_path}."
+        ):
             load_data(missing_path)
-
-        assert f"File not found: {missing_path}." in capsys.readouterr().out
 
     def test_load_invalid_json_reports_line_number(self, tmp_path: Path) -> None:
         file_path = tmp_path / "broken.json"
         file_path.write_text('{\n  "name": "Festival",\n  broken\n}', encoding="utf-8")
 
-        with pytest.raises(ValueError, match=r"line 3"):
+        with pytest.raises(errors.StorageError, match=r"line 3"):
             load_data(file_path)
 
     def test_load_unknown_performance_kind_raises(self, tmp_path: Path) -> None:
         file_path = tmp_path / "unknown.json"
         file_path.write_text(
             json.dumps(
-                {
-                    "performances": [
-                        {"kind": "concert", "start": "2027-06-10T20:00"}
-                    ]
-                }
+                {"performances": [{"kind": "concert", "start": "2027-06-10T20:00"}]}
             ),
             encoding="utf-8",
         )
 
-        with pytest.raises(ValueError, match="Unknown performance kind"):
+        with pytest.raises(errors.StorageError, match="Unknown performance kind"):
             load_data(file_path)
 
     def test_load_invalid_model_data_propagates_error(self, tmp_path: Path) -> None:
@@ -117,6 +113,8 @@ class TestJSONFileStorage:
 
 
 class TestFestivalDataJSONEncoder:
+    """Tests suite for the `FestivalDataJSONEncoder` class."""
+
     def test_encodes_supported_values(self) -> None:
         payload = {
             "day": date(2027, 6, 10),

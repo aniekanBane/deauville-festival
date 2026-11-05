@@ -7,6 +7,8 @@ from deauville_festival.storage import SQLiteStorage
 
 
 class TestSQLiteStorage:
+    """Tests suite for the `SQLiteStorage` class."""
+
     def test_new_database_is_not_initialized(self, tmp_path: Path) -> None:
         storage = SQLiteStorage(tmp_path / "festival.db")
 

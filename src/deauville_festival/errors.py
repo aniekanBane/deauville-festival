@@ -32,3 +32,7 @@ class InvalidDateTimeFormatError(InvalidError):
             f"'{datetime_str}' is not a valid date and time. "
             "Use YYYY-MM-DDTHH:MM format."
         )
+
+
+class StorageError(FestivalError):
+    """Custom exception for storage-related errors."""

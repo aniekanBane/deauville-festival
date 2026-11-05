@@ -12,7 +12,15 @@ from pydantic import (
 )
 
 from deauville_festival import helpers
-from deauville_festival.models import PerformanceKind
+from deauville_festival.models import (
+    Artist,
+    LineupPerformance,
+    Performance,
+    PerformanceKind,
+    SoloPerformance,
+    Venue,
+    WorkshopPerformance,
+)
 
 
 class FestivalResponse(BaseModel):
@@ -151,12 +159,18 @@ SlugStr = Annotated[RequiredStr, AfterValidator(helpers.get_slug)]
 class AddArtistRequest(BaseModel):
     """Represents an artist input."""
 
-    name: RequiredStr = Field(max_length=64, description="The name of the artist")
+    name: RequiredStr = Field(
+        max_length=Artist.NAME_MAX_LEN, description="The name of the artist"
+    )
     bio: str = Field(
-        default="", max_length=255, description="A short biography of the artist."
+        default="",
+        max_length=Artist.BIO_MAX_LEN,
+        description="A short biography of the artist.",
     )
     photo_url: str = Field(
-        default="", max_length=200, description="The URL of the artist's photo."
+        default="",
+        max_length=Artist.PHOTO_URL_MAX_LEN,
+        description="The URL of the artist's photo.",
     )
 
 
@@ -164,15 +178,20 @@ class PerformanceIn(BaseModel, extra="forbid"):
     """Represents a performance input."""
 
     title: RequiredStr = Field(
-        max_length=100, description="The title of the performance."
+        max_length=Performance.TITLE_MAX_LEN,
+        description="The title of the performance.",
     )
-    venue: SlugStr = Field(max_length=64, description="The venue slug.")
+    venue: SlugStr = Field(max_length=Venue.NAME_MAX_LEN, description="The venue slug.")
     start: datetime = Field(description="The start time of the performance.")
     duration_minutes: int = Field(
-        ge=1, le=360, description="Duration in minutes (1-360)."
+        ge=Performance.DURATION_MINUTES_MIN_VALUE,
+        le=Performance.DURATION_MINUTES_MAX_VALUE,
+        description="Duration in minutes.",
     )
     description: str = Field(
-        default="", max_length=1024, description="A description of the performance."
+        default="",
+        max_length=Performance.DESCRIPTION_MAX_LEN,
+        description="A description of the performance.",
     )
 
 
@@ -181,10 +200,14 @@ class SoloPerformanceRequest(PerformanceIn):
 
     kind: Literal["solo"] = Field(description="The performance kind ('solo').")
     artist: SlugStr = Field(
-        max_length=64, description="The artist slug, if solo performance."
+        max_length=Artist.NAME_MAX_LEN,
+        description="The artist slug, if solo performance.",
     )
     min_age: int = Field(
-        default=0, ge=0, le=18, description="Minimum age requirement (0-18)."
+        default=SoloPerformance.MIN_AGE_LOWER,
+        ge=SoloPerformance.MIN_AGE_LOWER,
+        le=SoloPerformance.MIN_AGE_UPPER,
+        description="Minimum age requirement.",
     )
 
 
@@ -193,30 +216,33 @@ class LineupPerformanceRequest(PerformanceIn):
 
     kind: Literal["lineup"] = Field(description="The performance kind ('lineup').")
     host: SlugStr = Field(
-        max_length=64,
+        max_length=Artist.NAME_MAX_LEN,
         description="The slug of the host (artsit) of the lineup, if lineup performance.",
     )
     acts: list[SlugStr] = Field(
         default_factory=list,
-        description="List of acts' slugs if lineup performance (minimum 2).",
+        min_length=LineupPerformance.ACTS_MIN_LEN,
+        description="List of acts' slugs if lineup performance",
     )
 
     @model_validator(mode="after")
     def validate_lineup_kind(self) -> Self:
-        no_acts = len(self.acts)
-        if no_acts < 2:
-            raise ValueError("Lineup performances must have at least two acts.")
-        if max(Counter(self.acts).values()) > 1:
-            raise ValueError("Lineup performances cannot have duplicate acts.")
         if self.host in self.acts:
             raise ValueError("The host cannot be one of the acts in a lineup.")
 
+        if max(Counter(self.acts).values()) > 1:
+            raise ValueError("Lineup performances cannot have duplicate acts.")
+
+        no_acts = len(self.acts)
         # 10 minutes per act + 3 minutes between acts
-        min_duration = (no_acts * 10) + ((no_acts - 1) * 3)
+        min_duration = (no_acts * LineupPerformance.ACT_DURATION_MINUTES) + (
+            (no_acts - 1) * LineupPerformance.ACT_GAP_MINUTES
+        )
         if self.duration_minutes < min_duration:
             raise ValueError(
-                f"Lineup performances must be at least {min_duration} minutes long "
-                f"for {no_acts} acts. 10 minutes per act, plus 3 minutes between acts."
+                f"Duration must be at least {min_duration} minutes long for {no_acts} acts. "
+                f"{LineupPerformance.ACT_DURATION_MINUTES} minutes per act, "
+                f"plus {LineupPerformance.ACT_GAP_MINUTES} minutes between acts."
             )
 
         return self
@@ -227,10 +253,11 @@ class WorkshopPerformanceRequest(PerformanceIn):
 
     kind: Literal["workshop"] = Field(description="The performance kind ('workshop').")
     teacher: SlugStr = Field(
-        description="The teacher (artist) slug if workshop performance."
+        max_length=Artist.NAME_MAX_LEN,
+        description="The teacher (artist) slug if workshop performance.",
     )
     max_participants: int = Field(
-        ge=1,
+        ge=WorkshopPerformance.MAX_PARTICIPANTS_MIN_VALUE,
         description="Maximum number of participants for a workshop, if applicable.",
     )
     participants: list[RequiredStr] = Field(
@@ -243,6 +270,7 @@ class WorkshopPerformanceRequest(PerformanceIn):
             raise ValueError(
                 "The number of participants cannot exceed the maximum number of participants."
             )
+
         names_upper = Counter([name.upper() for name in self.participants])
         if any(v > 1 for _, v in names_upper.items()):
             raise ValueError("Cannot have duplicate participants.")

@@ -1,3 +1,4 @@
+from .init_db import seed_database
 from .stores import (
     DataStorage,
     FestivalDataJSONEncoder,
@@ -14,4 +15,5 @@ __all__ = [
     "SQLiteStorage",
     "load_data",
     "save_data",
+    "seed_database",
 ]
