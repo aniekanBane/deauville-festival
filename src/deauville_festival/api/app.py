@@ -1,10 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from scalar_fastapi import add_scalar_reference
 
-from deauville_festival import errors
-from deauville_festival.api.router import router
+from deauville_festival import config, errors
+from deauville_festival.api.routers import admin_router, public_router
 from deauville_festival.storage import DataStorage
 
 
@@ -25,40 +24,35 @@ def festival_exception_handler(_: Request, exc: errors.FestivalError) -> JSONRes
 
 def create_app(storage: DataStorage) -> FastAPI:
     """Creates and returns the FastAPI application."""
-
     app = FastAPI(
         title="Deauville Festival API",
         docs_url=None,
         redoc_url=None,
     )
 
-    app.dependency_overrides[DataStorage] = lambda: storage
     app.exception_handlers[errors.FestivalError] = festival_exception_handler
+    app.state.storage = storage
 
+    app.include_router(admin_router)
+    app.include_router(public_router)
     add_scalar_reference(app, route="/docs")
-    app.include_router(router)
 
-    app.mount("/admin", StaticFiles(directory="web/admin", html=True))
-    app.mount("/", StaticFiles(directory="web/public", html=True))
+    app.frontend("/admin", directory="web/admin")
+    app.frontend("/", directory="web/public")
 
     return app
 
 
-def run_server(storage: DataStorage) -> None:  # pragma: no cover
-    """Runs the FastAPI server."""
+def get_app() -> FastAPI:
+    from deauville_festival.storage import SQLiteStorage, seed_database
 
-    import uvicorn
+    storage = SQLiteStorage(config.DATA_DIR / "festival.db")
+    seed_database(storage)
 
-    app = create_app(storage)
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    return create_app(storage)
 
 
 if __name__ == "__main__":
-    from pathlib import Path
+    import uvicorn
 
-    from deauville_festival.storage import SQLiteStorage, seed_database
-
-    storage = SQLiteStorage(Path("data/festival.db"))
-    seed_database(storage)
-
-    run_server(storage)
+    uvicorn.run(get_app(), host="0.0.0.0")  # noqa: S104

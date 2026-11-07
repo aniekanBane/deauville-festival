@@ -14,6 +14,7 @@ __all__ = [
     "SoloPerformance",
     "LineupPerformance",
     "WorkshopPerformance",
+    "PERFORMANCE_REGISTRY",
 ]
 
 
@@ -289,6 +290,7 @@ class SoloPerformance(Performance):
     artist: str
     min_age: int = MIN_AGE_LOWER
 
+    @typing.override
     def __post_init__(self) -> None:
         super().__post_init__()
         self.artist = self.validate_artist(self.artist)
@@ -338,6 +340,7 @@ class LineupPerformance(Performance):
     host: str
     acts: list[str]
 
+    @typing.override
     def __post_init__(self) -> None:
         super().__post_init__()
         self.host = self.validate_host(self.host)
@@ -408,6 +411,18 @@ class WorkshopPerformance(Performance):
     max_participants: int
     participants: list[str] = dataclasses.field(default_factory=list)
 
+    @typing.override
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.teacher = self.validate_teacher(self.teacher)
+        self.max_participants = self.validate_max_participants(self.max_participants)
+        self.participants = self.validate_participants(self.participants)
+        normalized_participants = [
+            helpers.get_slug(participant) for participant in self.participants
+        ]
+        if len(set(normalized_participants)) != len(normalized_participants):
+            raise errors.InvalidError("Cannot have duplicate participants.")
+
     @property
     @typing.override
     def kind(self) -> PerformanceKind:
@@ -416,17 +431,6 @@ class WorkshopPerformance(Performance):
     @property
     def places_left(self) -> int:
         return self.max_participants - len(self.participants)
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        self.teacher = self.validate_teacher(self.teacher)
-        self.max_participants = self.validate_max_participants(self.max_participants)
-        self.participants = self.validate_participants(self.participants)
-        normalized_participants = [
-            participant.casefold() for participant in self.participants
-        ]
-        if len(set(normalized_participants)) != len(normalized_participants):
-            raise errors.InvalidError("Cannot have duplicate participants.")
 
     @classmethod
     def validate_teacher(cls, teacher: str) -> str:
@@ -461,7 +465,7 @@ class WorkshopPerformance(Performance):
             raise errors.ConflictError("Participant already registered.")
 
         if self.places_left == 0:
-            raise errors.InvalidError("Workshop is full.")
+            raise errors.ConflictError("Workshop is full.")
 
         self.participants.append(participant)
 
@@ -475,4 +479,14 @@ class WorkshopPerformance(Performance):
 
     def has_participant(self, participant: str) -> bool:
         """Returns True if the participant is registered for the workshop."""
-        return any(p.casefold() == participant.casefold() for p in self.participants)
+        return any(
+            helpers.get_slug(p) == helpers.get_slug(participant)
+            for p in self.participants
+        )
+
+
+PERFORMANCE_REGISTRY: typing.Final[dict[PerformanceKind, type[Performance]]] = {
+    "solo": SoloPerformance,
+    "lineup": LineupPerformance,
+    "workshop": WorkshopPerformance,
+}

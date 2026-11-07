@@ -472,7 +472,7 @@ class TestWorkshopPerformance:
             max_participants=1,
             participants=["Camille R."],
         )
-        with pytest.raises(errors.InvalidError) as exc_info:
+        with pytest.raises(errors.ConflictError) as exc_info:
             perf.add_participant("Lucas M.")
 
         assert str(exc_info.value) == "Workshop is full."

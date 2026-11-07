@@ -273,9 +273,12 @@ def main() -> int:
             case "cancel":
                 cancel_performance(args.id, festival_manager)
             case "serve":
-                from deauville_festival.api.app import run_server
+                import uvicorn
 
-                run_server(storage_backend)
+                from deauville_festival.api.app import create_app
+
+                app = create_app(storage_backend)
+                uvicorn.run(app, host="0.0.0.0")  # noqa: S104
             case _:
                 parser.print_help()
         return 0

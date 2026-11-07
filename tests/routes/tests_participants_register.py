@@ -10,7 +10,7 @@ from deauville_festival.models import WorkshopPerformance
 class TestRegisterParticipantSuccess:
     """Tests for successful participant registration (HTTP 201) via `POST /api/performances/{id}/participants`."""
 
-    def test_register_participant_returns_201_and_persists(
+    def test_register_participant_returns_200_and_persists(
         self, client: TestClient, test_data_path: Path
     ) -> None:
         # "Improv for Beginners" at la-cabane on 2027-06-11T10:30 has 3/12 participants
@@ -21,7 +21,7 @@ class TestRegisterParticipantSuccess:
             json={"name": "  Lucas M.  "},
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 200
         assert response.json() == {"workshop": "Improv for Beginners"}
 
         saved_perfs = {
@@ -56,7 +56,7 @@ class TestRegisterParticipantErrors:
             "theatre-des-planches-2027-06-10-2100",
         ],
     )
-    def test_register_on_non_workshop_performance_returns_409(
+    def test_register_on_non_workshop_performance_returns_422(
         self, client: TestClient, non_workshop_id: str
     ) -> None:
         response = client.post(
@@ -64,7 +64,7 @@ class TestRegisterParticipantErrors:
             json={"name": "Lucas M."},
         )
 
-        assert response.status_code == 409
+        assert response.status_code == 422
         assert response.json() == {
             "detail": f"Performance '{non_workshop_id}' is not a workshop."
         }
@@ -101,7 +101,7 @@ class TestRegisterParticipantErrors:
         assert isinstance(workshop, WorkshopPerformance)
         assert len(workshop.participants) == 3
 
-    def test_register_when_workshop_is_full_returns_422(
+    def test_register_when_workshop_is_full_returns_409(
         self, client: TestClient
     ) -> None:
         # Create a workshop with max_participants=1 and 1 initial participant
@@ -126,7 +126,7 @@ class TestRegisterParticipantErrors:
             json={"name": "Bob C."},
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 409
         assert response.json() == {"detail": "Workshop is full."}
 
     @pytest.mark.parametrize("invalid_name", ["", "   ", "\t\n", "A" * 101])
@@ -141,4 +141,3 @@ class TestRegisterParticipantErrors:
         )
 
         assert response.status_code == 422
-

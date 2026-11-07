@@ -8,9 +8,11 @@ from pathlib import Path
 
 from deauville_festival import errors, helpers
 from deauville_festival.models import (
+    PERFORMANCE_REGISTRY,
     Artist,
     LineupPerformance,
     Performance,
+    PerformanceKind,
     SoloPerformance,
     Venue,
     WorkshopPerformance,
@@ -297,19 +299,14 @@ class JSONFileStorage(DataStorage):
         return dict_data
 
     def _parse_performance(self, performance: dict[str, typing.Any]) -> Performance:
-        performance_classes: dict[str, type[Performance]] = {
-            "solo": SoloPerformance,
-            "lineup": LineupPerformance,
-            "workshop": WorkshopPerformance,
-        }
         performance_data: dict[str, typing.Any] = {
             **performance,
             "start": helpers.datetime_from_str(performance["start"]),
         }
         performance_data.pop("kind", None)  # Remove 'kind' from the data dictionary
         try:
-            kind = str(performance.get("kind"))
-            performance_class = performance_classes[kind]
+            kind = typing.cast(PerformanceKind, performance.get("kind"))
+            performance_class = PERFORMANCE_REGISTRY[kind]
         except KeyError:
             raise errors.StorageError(
                 f"Unknown performance kind: {performance.get('kind')!r}."
