@@ -44,6 +44,11 @@ class TestVenueInit:
 
         assert str(exc_info.value) == "Venue capacity must be at least 1."
 
+    def test_name_without_letters_or_digits_raises_invalid_error(self) -> None:
+        with pytest.raises(errors.InvalidError) as exc_info:
+            Venue(name="---", capacity=100, address="Deauville")
+        assert "must contain letters or digits" in str(exc_info.value)
+
     def test_positional_arguments_raise_type_error(self) -> None:
         with pytest.raises(TypeError):
             Venue("Le Kiosque", 120, "Promenade des Planches")  # type: ignore[misc]

@@ -1,5 +1,6 @@
 import pytest
 
+from deauville_festival import errors
 from deauville_festival.models import Artist, Venue
 
 
@@ -25,6 +26,16 @@ class TestArtistInit:
         assert artist.name == "Élodie Marchal"
         assert artist.bio == "Stand-up comedian from Paris."
         assert artist.photo_url == "https://example.com/elodie.jpg"
+
+    def test_name_without_letters_or_digits_raises_invalid_error(self) -> None:
+        with pytest.raises(errors.InvalidError) as exc_info:
+            Artist(name="---", bio="Bio", photo_url="https://example.com/a.jpg")
+        assert "must contain letters or digits" in str(exc_info.value)
+
+    def test_empty_bio_and_photo_url_allowed(self) -> None:
+        artist = Artist(name="Test Artist", bio="", photo_url="")
+        assert artist.bio == ""
+        assert artist.photo_url == ""
 
     def test_positional_arguments_raise_type_error(self) -> None:
         with pytest.raises(TypeError):

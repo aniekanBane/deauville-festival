@@ -1,56 +1,27 @@
 import argparse
 import sys
+from typing import Any
 
-from deauville_festival import config, errors, helpers
+from deauville_festival import cli_prompts, config, errors, helpers
 from deauville_festival.festival import FestivalManager
 from deauville_festival.models import (
-    Artist,
+    PERFORMANCE_REGISTRY,
+    LineupPerformance,
     Performance,
     SoloPerformance,
+    WorkshopPerformance,
 )
 from deauville_festival.storage import SQLiteStorage, seed_database
 
 
-def display_festival_info(manager: FestivalManager) -> None:
-    """Displays basic information about the festival."""
-    festival_info = manager.get_festival_info()
-    print(
-        f"{festival_info.name}\n"
-        f"From {festival_info.first_day} to {festival_info.last_day}\n"
-        f"{festival_info.venue_count} venues, "
-        f"{festival_info.artist_count} artists, "
-        f"{festival_info.performance_count} performances"
-    )
-
-
-def display_venues(manager: FestivalManager) -> None:
-    """Displays information about the venues."""
-    venues = manager.list_venues()
-    print(f"Venues: {len(venues)}")
-    for venue in venues:
-        print(str(venue))
-
-    total_capacity = sum(venue.capacity for venue in venues)
-    print(f"Total: {total_capacity} seats")
-
-
-def add_artist(manager: FestivalManager) -> None:
-    """Prompts for details and adds a new artist."""
-    name = Artist.validate_name(input("Name: "))
-    bio = Artist.validate_bio(input("Bio: "))
-    photo_url = Artist.validate_photo_url(input("Photo URL: "))
-
-    artist = Artist(name=name, bio=bio, photo_url=photo_url)
-
-    manager.add_artist(artist)
-    print(f"Added artist: {str(artist)}.")
-
-
 def display_artists(manager: FestivalManager) -> None:
-    """Displays information about all artists."""
+    """Lists all artists."""
     artists = manager.list_artists()
-    print(f"Artists: {len(artists)}")
+
+    title = f"Artists: {len(artists)}"
+    print(f"\n{title}\n{'-' * len(title)}")
     if not artists:
+        print("No artists found.")
         return
 
     labels = [str(artist) for artist in artists]
@@ -62,124 +33,56 @@ def display_artists(manager: FestivalManager) -> None:
         print(f"{label:<{max_label_len}} | {count} {s}")
 
 
-def display_artist_info(artist_slug: str, manager: FestivalManager) -> None:
-    """Displays details and performances for a specific artist."""
-    artist, performances = manager.get_artist_with_performances(artist_slug)
+def display_performance_details(manager: FestivalManager, performance_id: str) -> None:
+    """Displays the details of a specific performance."""
+    performance = manager.get_performance_by_id(performance_id)
+    if performance is None:
+        raise errors.NotFoundError(f"Performance {performance_id} not found.")
 
-    print(f"{artist.name} ({artist.slug})\n")
-    print("About")
-    print("-----")
-    print(f"{artist.bio}\n")
-
-    print("Performances")
-    print("------------")
-
-    if not performances:
-        print("No performances found for this artist.")
-        return
-
-    venue_name_map = manager.get_venue_slug_to_name_map()
-    venue_name_max_len = max(len(name) for name in venue_name_map.values())
-
-    for performance in performances:
-        start_time = performance.start
-        end_time = performance.end
-        role = performance.involves_artist(artist_slug)
-        venue_name = venue_name_map[performance.venue]
-        print(
-            f"{start_time:%a %d %H:%M}-{end_time:%H:%M} | "
-            f"{venue_name:<{venue_name_max_len}} | "
-            f"{performance.title} ({role})"
-        )
+    performance_details = manager.get_performance_details(performance)
+    cli_prompts.display_performance_details(performance_details)
 
 
-def display_programme(day: str, manager: FestivalManager) -> None:
-    """Displays the programme for a specific day."""
-    chosen_date = helpers.date_from_str(day)
-    if not manager.is_in_range(chosen_date):
-        raise ValueError(
-            f"Date must be within the festival days\n"
-            f"{', '.join(str(d) for d in manager.get_festival_days())}."
-        )
-
-    performances = manager.list_performances(chosen_date)
-    if not performances:
-        print(f"No performances found for {chosen_date}.")
-        return
-
-    venue_name_map = manager.get_venue_slug_to_name_map()
-    venue_name_max_len = max(len(name) for name in venue_name_map.values())
-
-    print(f"Programme for {chosen_date:%A %d %B}:")
-    for performance in performances:
-        start_time = performance.start
-        end_time = performance.end
-        venue_name = venue_name_map[performance.venue]
-        print(
-            f"{start_time:%H:%M}-{end_time:%H:%M} | "
-            f"{venue_name:<{venue_name_max_len}} | "
-            f"{performance.title} ({performance.kind})"
-        )
-
-
-def display_performances_now(moment_text: str, manager: FestivalManager) -> None:
-    """Displays the performances happening now."""
-    moment = helpers.datetime_from_str(moment_text)
-
-    ongoing_performances, next_3_performances = manager.get_performance_lineup(moment)
-
-    venue_name_map = manager.get_venue_slug_to_name_map()
-
-    print(f"On stage at {moment:%Y-%m-%d %H:%M}:")
-    if not ongoing_performances:
-        print(f"\tNo performances happening at {moment:%Y-%m-%d %H:%M}.")
-    else:
-        for performance in ongoing_performances:
-            end_time = performance.end
-            venue_name = venue_name_map[performance.venue]
-            print(f"- {performance.title} at {venue_name}, until {end_time:%H:%M}")
-
-    print("Up next:")
-    if not next_3_performances:
-        print("No upcoming performances.")
-    else:
-        venue_name_max_len = max(len(name) for name in venue_name_map.values())
-        for performance in next_3_performances:
-            start_time = performance.start
-            end_time = performance.end
-            venue_name = venue_name_map[performance.venue]
-            print(
-                f"{start_time:%H:%M}-{end_time:%H:%M} | "
-                f"{venue_name:<{venue_name_max_len}} | "
-                f"{performance.title} ({performance.kind})"
-            )
-
-
-def parse_duration(duration_str: str) -> int:
-    """Parses the duration input string into an integer."""
-    duration_str = helpers.guard_empty_str(duration_str, "duration")
-    if not duration_str.isdigit():
-        raise ValueError(f"'{duration_str}' is not a valid number of minutes.")
-    return int(duration_str)
-
-
-def add_performance(manager: FestivalManager) -> None:
-    """Prompts for details and adds a solo performance to the festival."""
+def add_performance(manager: FestivalManager, kind: str = "solo") -> None:
+    """Prompts for details and adds a performance to the festival."""
     title = Performance.validate_title(input("Title: "))
-    artist_slug = SoloPerformance.validate_artist(input("Artist (slug): "))
     venue_slug = Performance.validate_venue(input("Venue (slug): "))
     start = helpers.datetime_from_str(input("Start (YYYY-MM-DDTHH:MM): "))
+    description = Performance.validate_description(input("Description: "))
     duration = Performance.validate_duration_minutes(
-        parse_duration(input("Duration (minutes): "))
+        cli_prompts.parse_duration(input("Duration (1-360 minutes): "))
     )
 
-    performance = SoloPerformance(
-        title=title,
-        artist=artist_slug,
-        venue=venue_slug,
-        start=start,
-        duration_minutes=duration,
-    )
+    kwargs: dict[str, Any] = {
+        "title": title,
+        "venue": venue_slug,
+        "start": start,
+        "duration_minutes": duration,
+        "description": description,
+    }
+
+    if kind == "solo":
+        kwargs["artist"] = SoloPerformance.validate_artist(input("Artist (slug): "))
+        kwargs["min_age"] = SoloPerformance.validate_min_age(
+            cli_prompts.parse_min_age(input("Minimum age (0-18 years): "))
+        )
+    elif kind == "lineup":
+        kwargs["host"] = LineupPerformance.validate_host(input("Host (slug): "))
+        acts_input = input("Acts (comma-separated slugs): ")
+        kwargs["acts"] = [a.strip() for a in acts_input.split(",") if a.strip()]
+    elif kind == "workshop":
+        kwargs["teacher"] = WorkshopPerformance.validate_teacher(
+            input("Teacher (slug): ")
+        )
+        kwargs["max_participants"] = WorkshopPerformance.validate_max_participants(
+            cli_prompts.parse_max_participants(input("Max participants (>= 1): "))
+        )
+    else:
+        raise ValueError(
+            f"Unknown performance kind '{kind}'. Must be 'solo', 'lineup', or 'workshop'."
+        )
+
+    performance = PERFORMANCE_REGISTRY[kind](**kwargs)
 
     manager.add_performance(performance)
 
@@ -187,15 +90,21 @@ def add_performance(manager: FestivalManager) -> None:
     day_performances = manager.list_performances(day=performance_festival_day)
     line_number = day_performances.index(performance) + 1
 
+    def _get_ordinal(n: int) -> str:
+        n_str = str(n)
+        if n_str.endswith("1"):
+            return n_str + "st"
+        elif n_str.endswith("2"):
+            return n_str + "nd"
+        elif n_str.endswith("3"):
+            return n_str + "rd"
+        else:
+            return n_str + "th"
+
     print(
-        f"Added: {performance.id}, Event {line_number} of the programme {performance_festival_day}."
+        f"Added: {performance.id}, the {_get_ordinal(line_number)} "
+        f"event of the programme {performance_festival_day}."
     )
-
-
-def cancel_performance(id: str, manager: FestivalManager) -> None:
-    """Cancels a performance by removing it from the list of performances."""
-    performance_title = manager.delete_performance(id)
-    print(f"Cancelled: {performance_title}")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -211,8 +120,12 @@ def create_parser() -> argparse.ArgumentParser:
         "programme", help="Display the programme for a specific day."
     )
     programme_parser.add_argument(
-        "day",
+        "--day",
         help="The festival day (YYYY-MM-DD).",
+    )
+    programme_parser.add_argument(
+        "--venue",
+        help="The slug of the venue.",
     )
 
     artists_parser = subparsers.add_parser(
@@ -229,13 +142,22 @@ def create_parser() -> argparse.ArgumentParser:
         help="The date and time (YYYY-MM-DDTHH:MM).",
     )
 
-    subparsers.add_parser("add", help="Add a new performance.")
+    add_parser = subparsers.add_parser("add", help="Add a new performance.")
+    add_parser.add_argument(
+        "--kind",
+        "-k",
+        choices=["solo", "lineup", "workshop"],
+        default="solo",
+        help="The kind of performance to add (default: solo).",
+    )
 
     cancel_parser = subparsers.add_parser("cancel", help="Cancel a performance.")
     cancel_parser.add_argument(
         "id",
-        help="The ID of the performance (venue slug-start(YYYY-MM-DD-HHMM)).",
+        help="The ID of the performance (venue_slug-start(YYYY-MM-DD-HHMM)).",
     )
+
+    subparsers.add_parser("interactive", help="Interactive mode.")
 
     subparsers.add_parser("serve", help="Start the API server.")
 
@@ -254,24 +176,30 @@ def main() -> int:
 
         match args.command:
             case None:
-                display_festival_info(festival_manager)
+                cli_prompts.display_festival_info(festival_manager)
             case "venues":
-                display_venues(festival_manager)
+                cli_prompts.display_venues(festival_manager)
             case "programme":
-                display_programme(args.day, festival_manager)
+                cli_prompts.display_programme(
+                    festival_manager, helpers.date_from_str(args.day), args.venue
+                )
             case "artists":
                 if args.add:
-                    add_artist(festival_manager)
+                    cli_prompts.add_artist(festival_manager)
                 elif args.focus:
-                    display_artist_info(args.focus, festival_manager)
+                    cli_prompts.display_artist_info(festival_manager, args.focus)
                 else:
                     display_artists(festival_manager)
             case "now":
-                display_performances_now(args.moment, festival_manager)
+                cli_prompts.display_performances_now(festival_manager, args.moment)
             case "add":
-                add_performance(festival_manager)
+                add_performance(festival_manager, args.kind)
             case "cancel":
-                cancel_performance(args.id, festival_manager)
+                cli_prompts.cancel_performance(festival_manager, args.id)
+            case "interactive":
+                from deauville_festival.cli_interactive import run
+
+                run(festival_manager)
             case "serve":
                 import uvicorn
 
