@@ -244,6 +244,24 @@ class TestPerformanceComparisonAndEquality:
         )
         assert perf != other
 
+    def test_greater_than_comparison(self) -> None:
+        perf_a = SoloPerformance(
+            title="Show A",
+            venue="le-kiosque",
+            start=datetime(2027, 6, 10, 20, 0),
+            duration_minutes=60,
+            artist="elodie-marchal",
+        )
+        perf_b = SoloPerformance(
+            title="Show B",
+            venue="le-kiosque",
+            start=datetime(2027, 6, 10, 21, 0),
+            duration_minutes=60,
+            artist="elodie-marchal",
+        )
+        assert perf_b > perf_a
+        assert not (perf_a > perf_b)
+
 
 class TestSoloPerformance:
     """Tests for `SoloPerformance`."""
@@ -341,6 +359,19 @@ class TestLineupPerformance:
             )
 
         assert str(exc_info.value) == "Lineup performances must have at least 2 acts."
+
+    def test_duration_too_short_for_acts_raises_invalid_error(self) -> None:
+        with pytest.raises(errors.InvalidError) as exc_info:
+            LineupPerformance(
+                title="Gala Night",
+                venue="theatre-des-planches",
+                start=datetime(2027, 6, 10, 21, 0),
+                duration_minutes=20,
+                host="elodie-marchal",
+                acts=["hugo-vernier", "camille-roux"],
+            )
+
+        assert "Duration is too short for the number of acts" in str(exc_info.value)
 
     def test_get_all_artists_and_involves_artist(self) -> None:
         perf = LineupPerformance(

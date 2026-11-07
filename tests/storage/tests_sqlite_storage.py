@@ -45,3 +45,63 @@ class TestSQLiteStorage:
         SQLiteStorage(path)
 
         assert path.exists()
+
+    def test_unknown_performance_kind_in_database_raises_storage_error(
+        self, tmp_path: Path
+    ) -> None:
+        from deauville_festival import errors
+
+        storage = SQLiteStorage(tmp_path / "festival.db")
+        fake_row = {
+            "kind": "magic",
+            "title": "Title",
+            "venue_slug": "venue",
+            "start": "2027-06-10T20:00",
+            "duration_minutes": 60,
+            "description": "",
+        }
+        with pytest.raises(errors.StorageError, match="Unknown performance kind: 'magic'"):
+            storage._parse_performance(fake_row, None)  # type: ignore[arg-type]
+
+    def test_missing_required_column_raises_storage_error(
+        self, tmp_path: Path
+    ) -> None:
+        from deauville_festival import errors
+
+        storage = SQLiteStorage(tmp_path / "festival.db")
+        fake_row = {"kind": "solo", "artist_slug": None}
+        with pytest.raises(errors.StorageError, match="missing required column"):
+            storage._required_column(fake_row, "artist_slug")  # type: ignore[arg-type]
+
+    def test_unknown_performance_subclass_save_raises_storage_error(
+        self, tmp_path: Path, sample_festival_data: dict[str, Any]
+    ) -> None:
+        from dataclasses import dataclass
+
+        from deauville_festival import errors
+        from deauville_festival.models import Performance
+
+        @dataclass
+        class CustomPerformance(Performance):
+            @property
+            def kind(self):
+                return "custom"
+
+            def get_all_artists(self):
+                return ()
+
+            def involves_artist(self, slug):
+                return None
+
+        custom = CustomPerformance(
+            title="Custom Show",
+            venue="le-kiosque",
+            start=sample_festival_data["performances"][0].start,
+            duration_minutes=60,
+        )
+        invalid_data = {**sample_festival_data, "performances": [custom]}
+
+        db_path = tmp_path / "festival.db"
+        storage = SQLiteStorage(db_path)
+        with pytest.raises(errors.StorageError, match="Unknown performance kind: CustomPerformance"):
+            storage.save(invalid_data)
