@@ -48,17 +48,22 @@ the package unavailable.
 ### Command line
 
 The installed `deauville` command reads and updates
-[data/festival.json](data/festival.json):
+[data/festival.db](data/festival.db) (seeded initially from [data/festival.json](data/festival.json)):
 
 ```bash
 # Display festival information
 uv run deauville
 
+# Launch interactive terminal UI (using pick)
+uv run deauville interactive
+
 # List venues and their capacities
 uv run deauville venues
 
-# Display one day's programme
-uv run deauville programme 2027-06-11
+# Display programme (optionally filtered by day and/or venue)
+uv run deauville programme --day 2027-06-11
+uv run deauville programme --venue grand-casino
+uv run deauville programme --day 2027-06-11 --venue grand-casino
 
 # List artists and their number of performances
 uv run deauville artists
@@ -70,10 +75,13 @@ uv run deauville artists --focus nora-lebrun
 uv run deauville artists --add
 
 # Show performances currently on stage and the next three
+uv run deauville now
 uv run deauville now 2027-06-11T21:00
 
-# Add a solo performance interactively
+# Add a performance interactively (solo by default, or specify kind)
 uv run deauville add
+uv run deauville add --kind lineup
+uv run deauville add --kind workshop
 
 # Cancel a performance by ID
 uv run deauville cancel le-kiosque-2027-06-12-0100
@@ -136,18 +144,19 @@ Domain errors are converted by the API to the documented 404, 409, 422, and
 
 ```text
 src/deauville_festival/
-├── models.py       Domain entities and performance rules
-├── festival.py     FestivalManager and cross-entity validation
-├── storage/        Storage abstraction, JSON/SQLite backends, seeding, and SQL schema
-├── errors.py       Domain error types
-├── helpers.py      Input normalization and date/time helpers
-├── cli.py          Command-line interface
+├── models.py           Domain entities and performance rules (Solo, Lineup, Workshop)
+├── festival.py         FestivalManager and cross-entity validation
+├── storage/            Storage abstraction, JSON/SQLite backends, seeding, and SQL schema
+├── errors.py           Domain error types
+├── helpers.py          Input normalization and date/time helpers
+├── cli.py              Command-line interface and argument parsing
+├── cli_interactive.py  Terminal interactive interface powered by pick
+├── cli_prompts.py      CLI prompts, formatters, and display helpers
 └── api/
-    ├── app.py      FastAPI application and static-file mounts
-    ├── router.py   Public and admin API routes
-    ├── schemas.py  Pydantic request/response schemas
-    └── dependencies.py
-                    storage and FestivalManager dependencies
+    ├── app.py          FastAPI application and static-file mounts
+    ├── routers.py      Public and admin API routes
+    ├── schemas.py      Pydantic request/response schemas
+    └── dependencies.py Storage and FestivalManager dependencies
 ```
 
 The model classes in `models.py` validate rules intrinsic to one entity.
@@ -172,9 +181,10 @@ The test configuration is in `pyproject.toml`. Storage tests are grouped in
 [tests/storage/](tests/storage/), and API tests use isolated SQLite databases
 seeded explicitly by their fixtures.
 
-The repository currently contains 273 tests covering helpers, models, JSON and
-SQLite storage, CLI commands, request schemas, and API routes. The optional
-development tools can also be run locally:
+The repository currently contains 330 tests covering helpers, models, JSON and
+SQLite storage, CLI commands, interactive navigation, request schemas, and API routes,
+with 100% test coverage across all core domain, CLI, storage, and API modules (95% total).
+The optional development tools can also be run locally:
 
 ```bash
 uv run ruff check .
@@ -230,13 +240,14 @@ that:
 
 Implemented:
 
-- the complete festival domain model and validation;
+- the complete festival domain model and validation (solo, lineup, workshop);
 - JSON loading and saving for import/sample data;
 - SQLite schema, persistence, and initial seeding;
-- CLI programme, artist, venue, now-playing, add, and cancel commands;
+- CLI programme, artist, venue, now-playing, add (solo, lineup, workshop), and cancel commands;
+- interactive terminal navigation menu using `pick` (`uv run deauville interactive`);
 - FastAPI read and admin routes described in [API.md](API.md);
 - public and admin static websites;
-- automated tests for helpers, models, storage, CLI, schemas, and routes.
+- automated tests for helpers, models, storage, CLI, interactive navigation, schemas, and routes (330 tests, 95% total coverage, 100% on core modules).
 
 The CLI and FastAPI application both use SQLite storage. The JSON file is
 kept as portable sample/import data and is used only to seed an empty
