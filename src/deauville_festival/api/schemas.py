@@ -217,10 +217,9 @@ class LineupPerformanceRequest(PerformanceIn):
     kind: Literal["lineup"] = Field(description="The performance kind ('lineup').")
     host: SlugStr = Field(
         max_length=Artist.NAME_MAX_LEN,
-        description="The slug of the host (artsit) of the lineup, if lineup performance.",
+        description="The slug of the host (artist) of the lineup, if lineup performance.",
     )
     acts: list[SlugStr] = Field(
-        default_factory=list,
         min_length=LineupPerformance.ACTS_MIN_LEN,
         description="List of acts' slugs if lineup performance",
     )
@@ -230,7 +229,7 @@ class LineupPerformanceRequest(PerformanceIn):
         if self.host in self.acts:
             raise ValueError("The host cannot be one of the acts in a lineup.")
 
-        if max(Counter(self.acts).values()) > 1:
+        if any(v > 1 for _, v in Counter(self.acts).items()):
             raise ValueError("Lineup performances cannot have duplicate acts.")
 
         no_acts = len(self.acts)
@@ -271,8 +270,8 @@ class WorkshopPerformanceRequest(PerformanceIn):
                 "The number of participants cannot exceed the maximum number of participants."
             )
 
-        names_upper = Counter([name.upper() for name in self.participants])
-        if any(v > 1 for _, v in names_upper.items()):
+        names = Counter([helpers.get_slug(name) for name in self.participants])
+        if any(v > 1 for _, v in names.items()):
             raise ValueError("Cannot have duplicate participants.")
 
         return self
@@ -329,4 +328,12 @@ class PerformanceInResponse(BaseModel):
 
 
 class RegisterParticipantRequest(BaseModel):
+    """Request model for registering a participant to a workshop."""
+
     name: RequiredStr = Field(max_length=100, description="The name of the participant")
+
+
+class RegisterParticipantResponse(BaseModel):
+    """Response model for when a participant is registered to a workshop."""
+
+    workshop: str = Field(description="The title of the performance.")

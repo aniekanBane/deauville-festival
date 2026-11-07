@@ -145,7 +145,7 @@ class FestivalManager:
         if performance is None:
             raise errors.NotFoundError(f"Performance '{performance_id}' not found.")
         if not isinstance(performance, WorkshopPerformance):
-            raise errors.ConflictError(
+            raise errors.InvalidError(
                 f"Performance '{performance.id}' is not a workshop."
             )
         performance.add_participant(participant_slug)

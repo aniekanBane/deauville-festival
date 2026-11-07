@@ -27,6 +27,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/deauville_festival"]
 
+[tool.fastapi]
+entrypoint = "deauville_festival.api.app:get_app"
+
 [tool.mypy]
 strict = true
 exclude = ["\\.venv"]
@@ -50,6 +53,9 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 python_files = ["test_*.py", "*_test.py", "tests_*.py", "*_tests.py"]
 
+[tool.ruff]
+target-version = "py312"
+
 [tool.ruff.lint]
 select = [
     "E",        # pycodestyle errors
@@ -64,6 +70,7 @@ select = [
     "G",        # flake8-logging-format
     "SIM",      # flake8-simplify
     "PERF",     # perflint
+    "FAST",     # 
     "UP",       # pyupgrades
 ]
 ignore = [
