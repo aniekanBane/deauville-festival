@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any
 
-from deauville_festival import helpers
+from deauville_festival import errors, helpers
 from deauville_festival.festival import FestivalManager
 from deauville_festival.models import Artist
 
@@ -203,7 +203,7 @@ def parse_duration(duration_str: str) -> int:
     """Parses the duration input string into an integer."""
     duration_str = helpers.guard_empty_str(duration_str, "duration")
     if not duration_str.isdigit():
-        raise ValueError(f"'{duration_str}' is not a valid number of minutes.")
+        raise errors.InvalidError(f"'{duration_str}' is not a valid number of minutes.")
     return int(duration_str)
 
 
@@ -211,7 +211,7 @@ def parse_min_age(min_age_str: str) -> int:
     """Parses the minimum age input string into an integer."""
     min_age_str = min_age_str.strip()
     if min_age_str and not min_age_str.isdigit():
-        raise ValueError(f"'{min_age_str}' is not a valid number of years.")
+        raise errors.InvalidError(f"'{min_age_str}' is not a valid number of years.")
     return int(min_age_str)
 
 
@@ -220,7 +220,7 @@ def parse_max_participants(max_participants_str: str) -> int:
         max_participants_str, "max_participants"
     )
     if not max_participants_str.isdigit():
-        raise ValueError(
+        raise errors.InvalidError(
             f"'{max_participants_str}' is not a valid number of participants."
         )
     return int(max_participants_str)
