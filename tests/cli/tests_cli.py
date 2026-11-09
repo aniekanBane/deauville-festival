@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from deauville_festival import cli, config, storage
+from deauville_festival import cli, config, errors, storage
 from deauville_festival.festival import FestivalManager
 from deauville_festival.models import Artist, SoloPerformance, Venue
 
@@ -494,15 +494,17 @@ class TestCliPromptsHelpers:
     """Tests for cli_prompts helper and parser functions."""
 
     def test_parse_duration_invalid(self) -> None:
-        with pytest.raises(ValueError, match="not a valid number of minutes"):
+        with pytest.raises(errors.InvalidError, match="not a valid number of minutes"):
             cli.cli_prompts.parse_duration("abc")
 
     def test_parse_min_age_invalid(self) -> None:
-        with pytest.raises(ValueError, match="not a valid number of years"):
+        with pytest.raises(errors.InvalidError, match="not a valid number of years"):
             cli.cli_prompts.parse_min_age("abc")
 
     def test_parse_max_participants_invalid(self) -> None:
-        with pytest.raises(ValueError, match="not a valid number of participants"):
+        with pytest.raises(
+            errors.InvalidError, match="not a valid number of participants"
+        ):
             cli.cli_prompts.parse_max_participants("abc")
 
     def test_display_performance_details_prompts_all_kinds(
