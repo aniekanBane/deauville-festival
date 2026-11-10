@@ -209,7 +209,7 @@ def pick_add_performance(manager: FestivalManager) -> None:
         chosen_artist_slug = artists[a_index].slug
 
         min_age_input = input("Minimum age (0-18, press Enter for 0): ").strip()
-        min_age = int(min_age_input) if min_age_input.isdigit() else 0
+        min_age = cli_prompts.parse_min_age(min_age_input)
 
         performance = SoloPerformance(
             title=title,
@@ -268,8 +268,8 @@ def pick_add_performance(manager: FestivalManager) -> None:
             return
         chosen_teacher_slug = artists[t_index].slug
 
-        max_participants_input = input("Maximum participants: ").strip()
-        max_participants = int(max_participants_input)
+        max_participants_input = input("Maximum participants (>= 1): ").strip()
+        max_participants = cli_prompts.parse_max_participants(max_participants_input)
 
         performance = WorkshopPerformance(
             title=title,
@@ -279,6 +279,9 @@ def pick_add_performance(manager: FestivalManager) -> None:
             start=start,
             duration_minutes=duration,
         )
+
+    description_input = input("Description: ")
+    performance.description = Performance.validate_description(description_input)
 
     manager.add_performance(performance)
 

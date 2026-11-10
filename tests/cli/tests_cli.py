@@ -1,9 +1,11 @@
+import argparse
+import typing
 from datetime import date
 from pathlib import Path
 
 import pytest
 
-from deauville_festival import cli, config, errors, storage
+from deauville_festival import cli, cli_prompts, config, errors, helpers, storage
 from deauville_festival.festival import FestivalManager
 from deauville_festival.models import Artist, SoloPerformance, Venue
 
@@ -17,7 +19,7 @@ def cli_data_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     storage.SQLiteStorage(database_path).save(
         storage.JSONFileStorage(_SOURCE_DATA_PATH).load()
     )
-    monkeypatch.setattr(cli.config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     return database_path
 
 
@@ -115,7 +117,7 @@ class TestDisplayArtists:
             SoloPerformance(
                 title="One Show Only",
                 venue="le-kiosque",
-                start=cli.helpers.datetime_from_str("2027-06-10T20:00"),
+                start=helpers.datetime_from_str("2027-06-10T20:00"),
                 duration_minutes=60,
                 artist="solo-star",
             )
@@ -151,7 +153,7 @@ class TestDisplayArtists:
     ) -> None:
         manager.add_artist(Artist(name="Newcomer", bio="Just arrived.", photo_url=""))
 
-        cli.cli_prompts.display_artist_info(manager, "newcomer")
+        cli_prompts.display_artist_info(manager, "newcomer")
 
         out = capsys.readouterr().out
         assert "Newcomer (newcomer)" in out
@@ -210,7 +212,7 @@ class TestDisplayProgramme:
             performances=[],
         )
 
-        cli.cli_prompts.display_programme(empty_manager, day=date(2027, 6, 10))
+        cli_prompts.display_programme(empty_manager, day=date(2027, 6, 10))
 
         assert "No performances found for this selection." in capsys.readouterr().out
 
@@ -486,7 +488,7 @@ class TestDisplayPerformanceDetailsCli:
     def test_display_performance_details_not_found(
         self, manager: FestivalManager
     ) -> None:
-        with pytest.raises(cli.errors.NotFoundError):
+        with pytest.raises(errors.NotFoundError):
             cli.display_performance_details(manager, "unknown-id")
 
 
@@ -495,17 +497,17 @@ class TestCliPromptsHelpers:
 
     def test_parse_duration_invalid(self) -> None:
         with pytest.raises(errors.InvalidError, match="not a valid number of minutes"):
-            cli.cli_prompts.parse_duration("abc")
+            cli_prompts.parse_duration("abc")
 
     def test_parse_min_age_invalid(self) -> None:
         with pytest.raises(errors.InvalidError, match="not a valid number of years"):
-            cli.cli_prompts.parse_min_age("abc")
+            cli_prompts.parse_min_age("abc")
 
     def test_parse_max_participants_invalid(self) -> None:
         with pytest.raises(
             errors.InvalidError, match="not a valid number of participants"
         ):
-            cli.cli_prompts.parse_max_participants("abc")
+            cli_prompts.parse_max_participants("abc")
 
     def test_display_performance_details_prompts_all_kinds(
         self, manager: FestivalManager, capsys: pytest.CaptureFixture[str]
@@ -515,7 +517,7 @@ class TestCliPromptsHelpers:
         assert solo is not None
         details_solo = manager.get_performance_details(solo)
         details_solo["min_age"] = 16
-        cli.cli_prompts.display_performance_details(details_solo)
+        cli_prompts.display_performance_details(details_solo)
         out = capsys.readouterr().out
         assert "Sacha Diallo" in out
         assert "Min Age:      16+" in out
@@ -523,16 +525,14 @@ class TestCliPromptsHelpers:
         # Lineup
         lineup = manager.get_performance_by_id("grand-casino-2027-06-10-2030")
         assert lineup is not None
-        cli.cli_prompts.display_performance_details(
-            manager.get_performance_details(lineup)
-        )
+        cli_prompts.display_performance_details(manager.get_performance_details(lineup))
         out = capsys.readouterr().out
         assert "Paul Kerbrat" in out
 
         # Workshop
         workshop = manager.get_performance_by_id("la-cabane-2027-06-11-1030")
         assert workshop is not None
-        cli.cli_prompts.display_performance_details(
+        cli_prompts.display_performance_details(
             manager.get_performance_details(workshop)
         )
         out = capsys.readouterr().out
@@ -549,11 +549,12 @@ class TestCliPromptsHelpers:
 
         class FakeDatetime(datetime):
             @classmethod
+            @typing.override
             def now(cls, tz=None):
                 return datetime(2027, 6, 10, 21, 0)
 
-        monkeypatch.setattr(cli.cli_prompts, "datetime", FakeDatetime)
-        cli.cli_prompts.display_performances_now(manager, None)
+        monkeypatch.setattr(cli_prompts, "datetime", FakeDatetime)
+        cli_prompts.display_performances_now(manager, None)
         out = capsys.readouterr().out
         assert "On stage at 2027-06-10 21:00" in out
 
@@ -567,7 +568,7 @@ class TestCliOtherCommands:
         inputs = iter(["Title", "la-cabane", "2027-06-10T14:00", "Desc", "60"])
         monkeypatch.setattr("builtins.input", lambda _prompt="": next(inputs))
         with pytest.raises(ValueError, match="Unknown performance kind 'magic'"):
-            cli.add_performance(manager, kind="magic")
+            cli.add_performance(manager, kind="magic")  # type: ignore[arg-type]
 
     def test_add_ordinal_3rd_and_th(
         self,
@@ -610,6 +611,43 @@ class TestCliOtherCommands:
         exit_code = cli.main()
         assert exit_code == 0
         assert "the 5th event of the programme 2027-06-10" in capsys.readouterr().out
+
+    def test_add_ordinal_teen_numbers_use_th(
+        self,
+        cli_data_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # 2027-06-12 already has 8 performances; adding 3 more reaches the 11th event
+        slots = [
+            ("Morning Show 1", "la-cabane", "2027-06-12T06:30", "sacha-diallo"),
+            ("Morning Show 2", "grand-casino", "2027-06-12T07:00", "nora-lebrun"),
+            ("Morning Show 3", "le-kiosque", "2027-06-12T07:30", "lea-fontaine"),
+        ]
+        monkeypatch.setattr("sys.argv", ["deauville-festival", "add"])
+        for title, venue, start, artist in slots:
+            inputs = iter([title, venue, start, "", "30", artist, "0"])
+            monkeypatch.setattr(
+                "builtins.input", lambda _prompt="", it=inputs: next(it)
+            )
+            exit_code = cli.main()
+            assert exit_code == 0
+
+        inputs_12th = iter(
+            [
+                "Late Show",
+                "grand-casino",
+                "2027-06-13T02:00",
+                "",
+                "30",
+                "sacha-diallo",
+                "0",
+            ]
+        )
+        monkeypatch.setattr("builtins.input", lambda _prompt="": next(inputs_12th))
+        exit_code = cli.main()
+        assert exit_code == 0
+        assert "the 12th event of the programme 2027-06-12" in capsys.readouterr().out
 
     def test_interactive_command(
         self,
@@ -654,12 +692,12 @@ class TestCliOtherCommands:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         def fake_parse_args(
-            _self: cli.argparse.ArgumentParser,
-        ) -> cli.argparse.Namespace:
-            return cli.argparse.Namespace(command="unknown")
+            _self: argparse.ArgumentParser,
+        ) -> argparse.Namespace:
+            return argparse.Namespace(command="unknown")
 
         monkeypatch.setattr(
-            cli.argparse.ArgumentParser,
+            argparse.ArgumentParser,
             "parse_args",
             fake_parse_args,
         )

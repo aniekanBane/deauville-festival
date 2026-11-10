@@ -92,15 +92,10 @@ def add_performance(manager: FestivalManager, kind: PerformanceKind = "solo") ->
     line_number = day_performances.index(performance) + 1
 
     def _get_ordinal(n: int) -> str:
-        n_str = str(n)
-        if n_str.endswith("1"):
-            return n_str + "st"
-        elif n_str.endswith("2"):
-            return n_str + "nd"
-        elif n_str.endswith("3"):
-            return n_str + "rd"
-        else:
-            return n_str + "th"
+        if 11 <= (n % 100) <= 13:
+            return f"{n}th"
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+        return f"{n}{suffix}"
 
     print(
         f"Added: {performance.id}, the {_get_ordinal(line_number)} "
@@ -120,14 +115,13 @@ def create_parser() -> argparse.ArgumentParser:
     programme_parser = subparsers.add_parser(
         "programme", help="Display the programme for a specific day."
     )
-    programme_parser.add_argument(
-        "--day",
-        help="The festival day (YYYY-MM-DD).",
+    programme_parser.add_argument("--day", help="The festival day (YYYY-MM-DD).")
+    programme_parser.add_argument("--venue", help="The slug of the venue.")
+
+    performances_parser = subparsers.add_parser(
+        "performances", help="Display information about the performances."
     )
-    programme_parser.add_argument(
-        "--venue",
-        help="The slug of the venue.",
-    )
+    performances_parser.add_argument("id", help="The ID of the performance.")
 
     artists_parser = subparsers.add_parser(
         "artists", help="Display information about the artists."
@@ -139,14 +133,12 @@ def create_parser() -> argparse.ArgumentParser:
         "now", help="Display the performances happening now."
     )
     now_parser.add_argument(
-        "moment",
-        help="The date and time (YYYY-MM-DDTHH:MM).",
+        "moment", nargs="?", help="The date and time (YYYY-MM-DDTHH:MM)."
     )
 
     add_parser = subparsers.add_parser("add", help="Add a new performance.")
     add_parser.add_argument(
         "--kind",
-        "-k",
         choices=["solo", "lineup", "workshop"],
         default="solo",
         help="The kind of performance to add (default: solo).",
@@ -182,8 +174,10 @@ def main() -> int:
                 cli_prompts.display_venues(festival_manager)
             case "programme":
                 cli_prompts.display_programme(
-                    festival_manager, helpers.date_from_str(args.day), args.venue
+                    festival_manager, day=args.day, venue_slug=args.venue
                 )
+            case "performances":
+                display_performance_details(festival_manager, args.id)
             case "artists":
                 if args.add:
                     cli_prompts.add_artist(festival_manager)

@@ -63,10 +63,13 @@ def display_artist_info(manager: FestivalManager, artist_slug: str) -> None:
 
 def display_programme(
     manager: FestivalManager,
-    day: date | None = None,
+    day: date | str | None = None,
     venue_slug: str | None = None,
 ) -> None:
     """Displays the programme filtered by day and/or venue."""
+    if isinstance(day, str):
+        day = helpers.date_from_str(day)
+
     performances = manager.list_performances(day=day, venue_slug=venue_slug)
 
     venue_name_map = manager.get_venue_slug_to_name_map()
@@ -212,7 +215,7 @@ def parse_min_age(min_age_str: str) -> int:
     min_age_str = min_age_str.strip()
     if min_age_str and not min_age_str.isdigit():
         raise errors.InvalidError(f"'{min_age_str}' is not a valid number of years.")
-    return int(min_age_str)
+    return int(min_age_str) if min_age_str else 0
 
 
 def parse_max_participants(max_participants_str: str) -> int:
