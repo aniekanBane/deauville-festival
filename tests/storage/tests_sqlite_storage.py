@@ -60,12 +60,12 @@ class TestSQLiteStorage:
             "duration_minutes": 60,
             "description": "",
         }
-        with pytest.raises(errors.StorageError, match="Unknown performance kind: 'magic'"):
+        with pytest.raises(
+            errors.StorageError, match="Unknown performance kind: 'magic'"
+        ):
             storage._parse_performance(fake_row, None)  # type: ignore[arg-type]
 
-    def test_missing_required_column_raises_storage_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_missing_required_column_raises_storage_error(self, tmp_path: Path) -> None:
         from deauville_festival import errors
 
         storage = SQLiteStorage(tmp_path / "festival.db")
@@ -103,5 +103,7 @@ class TestSQLiteStorage:
 
         db_path = tmp_path / "festival.db"
         storage = SQLiteStorage(db_path)
-        with pytest.raises(errors.StorageError, match="Unknown performance kind: CustomPerformance"):
+        with pytest.raises(
+            errors.StorageError, match="Unknown performance kind: CustomPerformance"
+        ):
             storage.save(invalid_data)

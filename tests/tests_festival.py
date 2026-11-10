@@ -1,23 +1,17 @@
-from datetime import date, datetime, timedelta
-from pathlib import Path
+from datetime import date, datetime
+from typing import Any
 
 import pytest
 
 from deauville_festival import config, errors, storage
 from deauville_festival.festival import FestivalManager
-from deauville_festival.models import (
-    Artist,
-    LineupPerformance,
-    SoloPerformance,
-    Venue,
-    WorkshopPerformance,
-)
+from deauville_festival.models import SoloPerformance
 
 _SOURCE_DATA_PATH = config.DATA_DIR / "festival.json"
 
 
 @pytest.fixture
-def festival_data() -> dict:
+def festival_data() -> dict[str, Any]:
     return storage.JSONFileStorage(_SOURCE_DATA_PATH).load()
 
 
@@ -137,7 +131,9 @@ class TestFestivalManagerValidations:
     def test_get_artist_with_performances_not_found(
         self, manager: FestivalManager
     ) -> None:
-        with pytest.raises(errors.NotFoundError, match="Artist 'nonexistent' not found"):
+        with pytest.raises(
+            errors.NotFoundError, match="Artist 'nonexistent' not found"
+        ):
             manager.get_artist_with_performances("nonexistent")
 
     def test_add_performance_unknown_venue_raises_not_found(
@@ -150,7 +146,9 @@ class TestFestivalManagerValidations:
             duration_minutes=60,
             artist="sacha-diallo",
         )
-        with pytest.raises(errors.NotFoundError, match="Venue 'unknown-venue' not found"):
+        with pytest.raises(
+            errors.NotFoundError, match="Venue 'unknown-venue' not found"
+        ):
             manager.add_performance(perf)
 
     def test_add_performance_unknown_artist_raises_not_found(
@@ -163,7 +161,9 @@ class TestFestivalManagerValidations:
             duration_minutes=60,
             artist="unknown-artist",
         )
-        with pytest.raises(errors.NotFoundError, match="Artist 'unknown-artist' not found"):
+        with pytest.raises(
+            errors.NotFoundError, match="Artist 'unknown-artist' not found"
+        ):
             manager.add_performance(perf)
 
     def test_add_performance_outside_dates_raises_conflict(

@@ -1,4 +1,3 @@
-from datetime import datetime
 from fastapi.testclient import TestClient
 
 from deauville_festival import errors
@@ -95,6 +94,7 @@ class TestAppModule:
 
     def test_get_app(self, tmp_path, monkeypatch) -> None:
         import shutil
+
         from deauville_festival import config
 
         shutil.copy(config.DATA_DIR / "festival.json", tmp_path / "festival.json")

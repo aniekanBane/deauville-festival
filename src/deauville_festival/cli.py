@@ -8,6 +8,7 @@ from deauville_festival.models import (
     PERFORMANCE_REGISTRY,
     LineupPerformance,
     Performance,
+    PerformanceKind,
     SoloPerformance,
     WorkshopPerformance,
 )
@@ -43,7 +44,7 @@ def display_performance_details(manager: FestivalManager, performance_id: str) -
     cli_prompts.display_performance_details(performance_details)
 
 
-def add_performance(manager: FestivalManager, kind: str = "solo") -> None:
+def add_performance(manager: FestivalManager, kind: PerformanceKind = "solo") -> None:
     """Prompts for details and adds a performance to the festival."""
     title = Performance.validate_title(input("Title: "))
     venue_slug = Performance.validate_venue(input("Venue (slug): "))
