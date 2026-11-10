@@ -216,7 +216,7 @@ def delete_performance(
 @admin_router.post(
     "/performances/{performance_id}/participants",
     operation_id="RegisterParticipant",
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_201_CREATED,
     responses={
         404: {"description": "Performance not found."},
         409: {"description": "Participant already registered or workshop is full."},
@@ -230,4 +230,6 @@ def register_participant(
 ) -> RegisterParticipantResponse:
     """Adds a participant to a workshop."""
     workshop = manager.register_participant(performance_id, request.name)
-    return RegisterParticipantResponse(workshop=workshop)
+    return RegisterParticipantResponse(
+        title=workshop.title, places_left=workshop.places_left
+    )

@@ -16,15 +16,15 @@ def festival_data() -> dict[str, Any]:
 
 
 @pytest.fixture
-def manager(festival_data: dict) -> FestivalManager:
+def manager(festival_data: dict[str, Any]) -> FestivalManager:
     return FestivalManager(**festival_data)
 
 
 class TestFestivalManagerInit:
     """Tests for FestivalManager initialization."""
 
-    def test_empty_name_raises_value_error(self, festival_data: dict) -> None:
-        with pytest.raises(ValueError, match="Name cannot be empty"):
+    def test_empty_name_raises_value_error(self, festival_data: dict[str, Any]) -> None:
+        with pytest.raises(errors.FestivalError, match="Name cannot be empty"):
             FestivalManager(
                 name="   ",
                 first_day=festival_data["first_day"],
@@ -35,9 +35,11 @@ class TestFestivalManagerInit:
             )
 
     def test_last_day_before_or_equal_first_day_raises_value_error(
-        self, festival_data: dict
+        self, festival_data: dict[str, Any]
     ) -> None:
-        with pytest.raises(ValueError, match="Last day must be after first day"):
+        with pytest.raises(
+            errors.FestivalError, match="Last day must be after first day"
+        ):
             FestivalManager(
                 name="Festival",
                 first_day=date(2027, 6, 12),
@@ -47,7 +49,9 @@ class TestFestivalManagerInit:
                 performances=festival_data["performances"],
             )
 
-        with pytest.raises(ValueError, match="Last day must be after first day"):
+        with pytest.raises(
+            errors.FestivalError, match="Last day must be after first day"
+        ):
             FestivalManager(
                 name="Festival",
                 first_day=date(2027, 6, 15),
@@ -121,7 +125,7 @@ class TestFestivalManagerPerformances:
             duration_minutes=60,
             artist="sacha-diallo",
         )
-        with pytest.raises(ValueError, match="Venue ghost-venue not found"):
+        with pytest.raises(errors.NotFoundError, match="Venue ghost-venue not found"):
             manager.get_performance_details(solo)
 
 

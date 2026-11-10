@@ -30,10 +30,10 @@ class TestLineupPerformanceRequestValidation:
         req = LineupPerformanceRequest(
             kind="lineup",
             title="  Gala Night ",
-            venue="Théâtre des Planches",
+            venue="theatre-des-planches",
             start=datetime(2027, 6, 10, 21, 0),
             duration_minutes=min_duration,
-            host="Élodie Marchal",
+            host="elodie-marchal",
             acts=acts,
         )
         assert req.title == "Gala Night"
@@ -57,16 +57,8 @@ class TestLineupPerformanceRequestValidation:
 
         assert "List should have at least 2 items" in str(exc_info.value)
 
-    @pytest.mark.parametrize(
-        "duplicate_acts",
-        [
-            ["hugo-vernier", "hugo-vernier"],
-            ["Hugo Vernier", "hugo-vernier", "camille-roux"],
-        ],
-    )
-    def test_duplicate_acts_raises_validation_error(
-        self, duplicate_acts: list[str]
-    ) -> None:
+    def test_duplicate_acts_raises_validation_error(self) -> None:
+        duplicate_acts = ["hugo-vernier", "hugo-vernier", "camille-roux"]
         with pytest.raises(ValidationError) as exc_info:
             LineupPerformanceRequest(
                 kind="lineup",
@@ -88,7 +80,7 @@ class TestLineupPerformanceRequestValidation:
                 venue="le-kiosque",
                 start=datetime(2027, 6, 10, 21, 0),
                 duration_minutes=60,
-                host="Élodie Marchal",
+                host="elodie-marchal",
                 acts=["elodie-marchal", "hugo-vernier"],
             )
 
@@ -129,10 +121,10 @@ class TestWorkshopPerformanceRequestValidation:
         req = WorkshopPerformanceRequest(
             kind="workshop",
             title="Improv 101",
-            venue="Salon d'Honneur",
+            venue="salon-d-honneur",
             start=datetime(2027, 6, 11, 14, 0),
             duration_minutes=120,
-            teacher="Élodie Marchal",
+            teacher="elodie-marchal",
             max_participants=10,
         )
         assert req.venue == "salon-d-honneur"
@@ -205,10 +197,10 @@ class TestSoloPerformanceRequestAndCommonConstraints:
         req = SoloPerformanceRequest(
             kind="solo",
             title="  After Hours ",
-            venue="Le Kiosque",
+            venue="le-kiosque",
             start=datetime(2027, 6, 12, 1, 0),
             duration_minutes=60,
-            artist="Élodie Marchal",
+            artist="elodie-marchal",
             min_age=16,
         )
         assert req.title == "After Hours"
@@ -245,6 +237,7 @@ class TestSoloPerformanceRequestAndCommonConstraints:
 
     def test_performance_response_datetime_serializers(self) -> None:
         in_resp = PerformanceInResponse(
+            id="le-kiosque-2027-06-12-0100",
             kind="solo",
             title="After Hours",
             venue="le-kiosque",
@@ -278,3 +271,18 @@ class TestSoloPerformanceRequestAndCommonConstraints:
         dumped_full = full_resp.model_dump()
         assert dumped_full["start"] == "2027-06-12T01:00"
         assert dumped_full["end"] == "2027-06-12T02:00"
+
+    @pytest.mark.parametrize("invalid_slug", ["---", "!!!", "   -   "])
+    def test_punctuation_only_slug_raises_validation_error(
+        self, invalid_slug: str
+    ) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            SoloPerformanceRequest(
+                kind="solo",
+                title="After Hours",
+                venue=invalid_slug,
+                start=datetime(2027, 6, 12, 1, 0),
+                duration_minutes=60,
+                artist="elodie-marchal",
+            )
+        assert "Value must be a valid url slug." in str(exc_info.value)

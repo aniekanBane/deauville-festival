@@ -26,9 +26,7 @@ class TestDeletePerformance:
         }
         assert performance_id not in saved_ids
 
-    def test_unknown_performance_returns_404(
-        self, client: TestClient
-    ) -> None:
+    def test_unknown_performance_returns_404(self, client: TestClient) -> None:
         performance_id = "nonexistent-performance"
 
         response = client.delete(f"/api/performances/{performance_id}")

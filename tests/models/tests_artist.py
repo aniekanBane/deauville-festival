@@ -39,10 +39,10 @@ class TestArtistInit:
 
     def test_positional_arguments_raise_type_error(self) -> None:
         with pytest.raises(TypeError):
-            Artist(
-                "Élodie Marchal",  # type: ignore[arg-type]
-                "Stand-up comedian from Paris.",  # type: ignore[arg-type]
-                "https://example.com/elodie.jpg",  # type: ignore[arg-type]
+            Artist(  # type: ignore[call-arg]
+                "Élodie Marchal",  # pyrefly: ignore[bad-argument-count, unexpected-positional-argument]
+                "Stand-up comedian from Paris.",
+                "https://example.com/elodie.jpg",
             )
 
 

@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 from datetime import date, datetime
 from typing import Annotated, Literal, Self
@@ -46,6 +47,7 @@ class ArtistOut(BaseModel):
 
     slug: str = Field(description="A URL-friendly version of the artist's name.")
     name: str = Field(description="The name of the artist.")
+    bio: str = Field(default="", description="A short biography of the artist.")
     photo_url: str = Field(default="", description="The URL of the artist's photo.")
 
 
@@ -56,7 +58,6 @@ class ArtistSummaryResponse(ArtistOut):
 class ArtistDetailResponse(ArtistOut):
     """Represents an artist."""
 
-    bio: str = Field(default="", description="A short biography of the artist.")
     performances: list["PerformanceResponse"] = Field(
         description="The performances featuring this artist."
     )
@@ -152,7 +153,25 @@ class NowResponse(BaseModel):
 RequiredStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 """A string that is required (non-empty)."""
 
-SlugStr = Annotated[RequiredStr, AfterValidator(helpers.get_slug)]
+SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def validate_slug(value: str) -> str:
+    """Validates the slug format (alphanumeric characters and hyphens) and returns it if valid.
+
+    Returns:
+        The slug of the given name.
+
+    Raises:
+        InvalidError: If the slug format is invalid.
+    """
+    if not SLUG_PATTERN.match(value):
+        raise ValueError("Value must be a valid url slug.")
+
+    return value
+
+
+SlugStr = Annotated[RequiredStr, AfterValidator(validate_slug)]
 """A required string that is normalized to a slug."""
 
 
@@ -286,6 +305,7 @@ PerformanceRequest = Annotated[
 class PerformanceInResponse(BaseModel):
     """Response model for a performance that has be added or modified."""
 
+    id: str = Field(description="The ID of the performance.")
     kind: PerformanceKind = Field(
         description="The type of performance ('solo', 'lineup', or 'workshop')."
     )
@@ -336,4 +356,5 @@ class RegisterParticipantRequest(BaseModel):
 class RegisterParticipantResponse(BaseModel):
     """Response model for when a participant is registered to a workshop."""
 
-    workshop: str = Field(description="The title of the performance.")
+    title: str = Field(description="The title of the performance.")
+    places_left: int = Field(description="The number of places left in the workshop.")

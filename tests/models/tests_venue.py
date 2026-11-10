@@ -51,7 +51,7 @@ class TestVenueInit:
 
     def test_positional_arguments_raise_type_error(self) -> None:
         with pytest.raises(TypeError):
-            Venue("Le Kiosque", 120, "Promenade des Planches")  # type: ignore[misc]
+            Venue("Le Kiosque", 120, "Promenade des Planches")  # type: ignore[call-arg]
 
 
 class TestVenueSlug:

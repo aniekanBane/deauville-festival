@@ -61,6 +61,12 @@ class TestPublicRoutes:
         data = response.json()
         assert all(p["venue"] == "grand-casino" for p in data)
 
+    def test_get_programme_with_invalid_venue_slug_returns_422(
+        self, client: TestClient
+    ) -> None:
+        response = client.get("/api/programme", params={"venue": "---"})
+        assert response.status_code == 422
+
     def test_get_performance_success(self, client: TestClient) -> None:
         response = client.get("/api/performances/grand-casino-2027-06-10-2030")
         assert response.status_code == 200
@@ -108,7 +114,7 @@ class TestAppModule:
         class UnknownFestivalError(errors.FestivalError):
             pass
 
-        @client.app.get("/api/test-festival-error")
+        @client.app.get("/api/test-festival-error")  # type: ignore[attr-defined]
         def route_raising_error():
             raise UnknownFestivalError("Something unknown happened")
 
