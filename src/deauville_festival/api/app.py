@@ -37,8 +37,8 @@ def create_app(storage: DataStorage) -> FastAPI:
     app.include_router(public_router)
     add_scalar_reference(app, route="/docs")
 
-    app.frontend("/admin", directory="web/admin")
-    app.frontend("/", directory="web/public")
+    app.frontend("/admin", directory=config.WEB_DIR / "admin")
+    app.frontend("/", directory=config.WEB_DIR / "public")
 
     return app
 

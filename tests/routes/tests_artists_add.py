@@ -25,6 +25,7 @@ class TestAddArtistSuccess:
         assert response.json() == {
             "slug": "claire-dumont",
             "name": "Claire Dumont",
+            "bio": "Stand-up comedian from Paris.",
             "photo_url": "https://example.com/claire.jpg",
         }
 
@@ -45,6 +46,7 @@ class TestAddArtistSuccess:
         assert response.json() == {
             "slug": "camille-roux",
             "name": "Camille Roux",
+            "bio": "",
             "photo_url": "",
         }
 
@@ -64,6 +66,7 @@ class TestAddArtistSuccess:
         assert response.json() == {
             "slug": "chloe-mercier",
             "name": "Chloé Mercier",
+            "bio": "Bio with spaces",
             "photo_url": "https://example.com/photo.jpg",
         }
 

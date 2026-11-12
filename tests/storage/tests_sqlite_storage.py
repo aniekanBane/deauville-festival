@@ -1,8 +1,9 @@
+import typing
 from pathlib import Path
-from typing import Any
 
 import pytest
 
+from deauville_festival import errors
 from deauville_festival.storage import SQLiteStorage
 
 
@@ -13,11 +14,11 @@ class TestSQLiteStorage:
         storage = SQLiteStorage(tmp_path / "festival.db")
 
         assert not storage.is_initialized()
-        with pytest.raises(ValueError, match="not been initialized"):
+        with pytest.raises(errors.StorageError, match="not been initialized"):
             storage.load()
 
     def test_save_and_load_roundtrip(
-        self, tmp_path: Path, sample_festival_data: dict[str, Any]
+        self, tmp_path: Path, sample_festival_data: dict[str, typing.Any]
     ) -> None:
         storage = SQLiteStorage(tmp_path / "festival.db")
 
@@ -27,7 +28,7 @@ class TestSQLiteStorage:
         assert storage.load() == sample_festival_data
 
     def test_save_replaces_existing_data(
-        self, tmp_path: Path, sample_festival_data: dict[str, Any]
+        self, tmp_path: Path, sample_festival_data: dict[str, typing.Any]
     ) -> None:
         storage = SQLiteStorage(tmp_path / "festival.db")
         storage.save(sample_festival_data)
@@ -60,12 +61,12 @@ class TestSQLiteStorage:
             "duration_minutes": 60,
             "description": "",
         }
-        with pytest.raises(errors.StorageError, match="Unknown performance kind: 'magic'"):
+        with pytest.raises(
+            errors.StorageError, match="Unknown performance kind: 'magic'"
+        ):
             storage._parse_performance(fake_row, None)  # type: ignore[arg-type]
 
-    def test_missing_required_column_raises_storage_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_missing_required_column_raises_storage_error(self, tmp_path: Path) -> None:
         from deauville_festival import errors
 
         storage = SQLiteStorage(tmp_path / "festival.db")
@@ -74,7 +75,7 @@ class TestSQLiteStorage:
             storage._required_column(fake_row, "artist_slug")  # type: ignore[arg-type]
 
     def test_unknown_performance_subclass_save_raises_storage_error(
-        self, tmp_path: Path, sample_festival_data: dict[str, Any]
+        self, tmp_path: Path, sample_festival_data: dict[str, typing.Any]
     ) -> None:
         from dataclasses import dataclass
 
@@ -84,12 +85,15 @@ class TestSQLiteStorage:
         @dataclass
         class CustomPerformance(Performance):
             @property
+            @typing.override
             def kind(self):
                 return "custom"
 
+            @typing.override
             def get_all_artists(self):
                 return ()
 
+            @typing.override
             def involves_artist(self, slug):
                 return None
 
@@ -103,5 +107,7 @@ class TestSQLiteStorage:
 
         db_path = tmp_path / "festival.db"
         storage = SQLiteStorage(db_path)
-        with pytest.raises(errors.StorageError, match="Unknown performance kind: CustomPerformance"):
+        with pytest.raises(
+            errors.StorageError, match="Unknown performance kind: CustomPerformance"
+        ):
             storage.save(invalid_data)

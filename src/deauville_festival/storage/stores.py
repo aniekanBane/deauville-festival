@@ -78,7 +78,7 @@ class SQLiteStorage(DataStorage):
         ).fetchone()
 
         if festival is None:
-            raise ValueError("Festival data has not been initialized.")
+            raise errors.StorageError("Festival data has not been initialized.")
 
         venues = [
             Venue(

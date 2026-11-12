@@ -10,7 +10,7 @@ from deauville_festival.models import WorkshopPerformance
 class TestRegisterParticipantSuccess:
     """Tests for successful participant registration (HTTP 201) via `POST /api/performances/{id}/participants`."""
 
-    def test_register_participant_returns_200_and_persists(
+    def test_register_participant_returns_201_and_persists(
         self, client: TestClient, test_data_path: Path
     ) -> None:
         # "Improv for Beginners" at la-cabane on 2027-06-11T10:30 has 3/12 participants
@@ -21,8 +21,8 @@ class TestRegisterParticipantSuccess:
             json={"name": "  Lucas M.  "},
         )
 
-        assert response.status_code == 200
-        assert response.json() == {"workshop": "Improv for Beginners"}
+        assert response.status_code == 201
+        assert response.json() == {"title": "Improv for Beginners", "places_left": 8}
 
         saved_perfs = {
             p.id: p for p in storage.load_data(test_data_path)["performances"]

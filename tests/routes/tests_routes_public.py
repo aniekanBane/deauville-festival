@@ -1,4 +1,3 @@
-from datetime import datetime
 from fastapi.testclient import TestClient
 
 from deauville_festival import errors
@@ -62,6 +61,12 @@ class TestPublicRoutes:
         data = response.json()
         assert all(p["venue"] == "grand-casino" for p in data)
 
+    def test_get_programme_with_invalid_venue_slug_returns_422(
+        self, client: TestClient
+    ) -> None:
+        response = client.get("/api/programme", params={"venue": "---"})
+        assert response.status_code == 422
+
     def test_get_performance_success(self, client: TestClient) -> None:
         response = client.get("/api/performances/grand-casino-2027-06-10-2030")
         assert response.status_code == 200
@@ -72,7 +77,7 @@ class TestPublicRoutes:
     def test_get_performance_not_found(self, client: TestClient) -> None:
         response = client.get("/api/performances/nonexistent-id")
         assert response.status_code == 404
-        assert response.json()["detail"] == "Performance not found."
+        assert response.json()["detail"] == "Performance 'nonexistent-id' not found."
 
     def test_on_now_with_at_param(self, client: TestClient) -> None:
         response = client.get("/api/now", params={"at": "2027-06-10T21:00"})
@@ -95,6 +100,7 @@ class TestAppModule:
 
     def test_get_app(self, tmp_path, monkeypatch) -> None:
         import shutil
+
         from deauville_festival import config
 
         shutil.copy(config.DATA_DIR / "festival.json", tmp_path / "festival.json")
@@ -108,7 +114,7 @@ class TestAppModule:
         class UnknownFestivalError(errors.FestivalError):
             pass
 
-        @client.app.get("/api/test-festival-error")
+        @client.app.get("/api/test-festival-error")  # type: ignore[attr-defined]
         def route_raising_error():
             raise UnknownFestivalError("Something unknown happened")
 

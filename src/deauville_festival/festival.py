@@ -40,11 +40,11 @@ class FestivalManager:
         artists: list[Artist],
         performances: list[Performance],
         data_store: DataStorage | None = None,
-    ):
+    ) -> None:
         if not (name := name.strip()):
-            raise ValueError("Name cannot be empty")
+            raise errors.FestivalError("Name cannot be empty")
         if last_day <= first_day:
-            raise ValueError("Last day must be after first day")
+            raise errors.FestivalError("Last day must be after first day")
 
         self._name = name
         self._first_day = first_day
@@ -61,6 +61,7 @@ class FestivalManager:
 
     @classmethod
     def from_storage(cls, storage: DataStorage) -> "FestivalManager":
+        """Loads the festival data from the storage."""
         return cls(**storage.load(), data_store=storage)
 
     def save(self) -> None:
@@ -100,22 +101,39 @@ class FestivalManager:
         )
 
     def add_artist(self, artist: Artist) -> Artist:
-        if self.artist_exists(artist.slug):
+        """Adds an artist to the festival.
+
+        Returns:
+            The artist.
+        """
+        if self.artist_exists_by_slug(artist.slug):
             raise errors.ConflictError(f"Artist '{artist.slug}' already exists.")
+
         self._artists.append(artist)
         self.save()
+
         return artist
 
     def add_performance(self, performance: Performance) -> Performance:
-        """Adds a performance to the festival after validating all business rules."""
+        """Adds a performance to the festival.
+
+        Returns:
+            The performance.
+        """
         self._validate_performance(performance)
         self._performances.append(performance)
         self.save()
+
         return performance
 
     def update_performance(
         self, performance_id: str, performance: Performance
     ) -> Performance:
+        """Updates a performance in the festival.
+
+        Returns:
+            The performance.
+        """
         index = next(
             (i for i, p in enumerate(self._performances) if p.id == performance_id),
             None,
@@ -129,39 +147,44 @@ class FestivalManager:
         # Replace if passed
         self._performances[index] = performance
         self.save()
+
         return performance
 
     def delete_performance(self, performance_id: str) -> str:
+        """Deletes a performance from the festival."""
         performance = self.get_performance_by_id(performance_id)
-        if performance is None:
-            raise errors.NotFoundError(f"Performance '{performance_id}' not found.")
-
         self._performances.remove(performance)
         self.save()
+
         return performance.title
 
-    def register_participant(self, performance_id: str, participant_slug: str) -> str:
+    def register_participant(
+        self, performance_id: str, participant_slug: str
+    ) -> WorkshopPerformance:
         performance = self.get_performance_by_id(performance_id)
-        if performance is None:
-            raise errors.NotFoundError(f"Performance '{performance_id}' not found.")
         if not isinstance(performance, WorkshopPerformance):
             raise errors.InvalidError(
                 f"Performance '{performance.id}' is not a workshop."
             )
+
         performance.add_participant(participant_slug)
         self.save()
-        return performance.title
+
+        return performance
 
     def performance_exists(self, performance_id: str) -> bool:
         return any(p.id == performance_id for p in self._performances)
 
-    def get_performance_by_id(self, performance_id: str) -> Performance | None:
-        return next((p for p in self._performances if p.id == performance_id), None)
+    def get_performance_by_id(self, performance_id: str) -> Performance:
+        if (performance := self._get_performance_by_id(performance_id)) is None:
+            raise errors.NotFoundError(f"Performance '{performance_id}' not found.")
+
+        return performance
 
     def get_performance_details(self, performance: Performance) -> dict[str, Any]:
         venue = self.get_venue_by_slug(performance.venue)
         if venue is None:
-            raise ValueError(f"Venue {performance.venue} not found")
+            raise errors.NotFoundError(f"Venue {performance.venue} not found")
 
         venue_name = venue.name
         venue_capacity = venue.capacity
@@ -207,16 +230,15 @@ class FestivalManager:
                 }
             )
         elif isinstance(performance, WorkshopPerformance):
-            capacity = min(performance.max_participants, venue_capacity)
             data.update(
                 {
                     "summary": f"with {artist_map[performance.teacher]}, "
-                    f"{len(performance.participants)} / {capacity} places taken",
-                    "capacity": capacity,
+                    f"{len(performance.participants)} / {performance.max_participants} places taken",
+                    "capacity": venue_capacity,
                     "teacher": performance.teacher,
                     "max_participants": performance.max_participants,
                     "participants": performance.participants,
-                    "places_left": max(0, capacity - len(performance.participants)),
+                    "places_left": performance.places_left,
                 }
             )
 
@@ -241,27 +263,30 @@ class FestivalManager:
         filtered = self._get_filtered_performances(day, venue_slug, artist_slug)
         return tuple(sorted(filtered))
 
-    def artist_exists(self, artist_slug: str) -> bool:
+    def artist_exists_by_slug(self, artist_slug: str) -> bool:
         return any(a.slug == artist_slug for a in self._artists)
 
-    def get_artist_by_slug(self, artist_slug: str) -> Artist | None:
-        return next((a for a in self._artists if a.slug == artist_slug), None)
+    def get_artist_by_slug(self, artist_slug: str) -> Artist:
+        if (artist := self._get_artist_by_slug(artist_slug)) is None:
+            raise errors.NotFoundError(f"Artist '{artist_slug}' not found.")
+
+        return artist
 
     def get_artist_with_performances(
         self, artist_slug: str
     ) -> tuple[Artist, tuple[Performance, ...]]:
         artist = self.get_artist_by_slug(artist_slug)
-        if artist is None:
-            raise errors.NotFoundError(f"Artist '{artist_slug}' not found.")
-
         performances = self._get_filtered_performances(artist_slug=artist_slug)
         return artist, tuple(sorted(performances, key=lambda p: p.start))
 
     def list_artists(self) -> tuple[Artist, ...]:
         return tuple(sorted(self._artists, key=lambda a: a.slug))
 
-    def get_venue_by_slug(self, venue_slug: str) -> Venue | None:
-        return next((v for v in self._venues if v.slug == venue_slug), None)
+    def get_venue_by_slug(self, venue_slug: str) -> Venue:
+        if (venue := self._get_venue_by_slug(venue_slug)) is None:
+            raise errors.NotFoundError(f"Venue '{venue_slug}' not found.")
+
+        return venue
 
     def list_venues(self) -> tuple[Venue, ...]:
         return tuple(self._venues)
@@ -271,6 +296,15 @@ class FestivalManager:
 
     def get_artist_slug_to_name_map(self) -> dict[str, str]:
         return {artist.slug: artist.name for artist in self._artists}
+
+    def _get_artist_by_slug(self, artist_slug: str) -> Artist | None:
+        return next((a for a in self._artists if a.slug == artist_slug), None)
+
+    def _get_venue_by_slug(self, venue_slug: str) -> Venue | None:
+        return next((v for v in self._venues if v.slug == venue_slug), None)
+
+    def _get_performance_by_id(self, performance_id: str) -> Performance | None:
+        return next((p for p in self._performances if p.id == performance_id), None)
 
     def _get_filtered_performances(
         self,
@@ -307,11 +341,12 @@ class FestivalManager:
                 performance.max_participants,
                 venue.capacity,
             )
+
         return venue
 
     def _validate_artists(self, performance: Performance) -> None:
         for artist in performance.get_all_artists():
-            if not self.artist_exists(artist):
+            if not self.artist_exists_by_slug(artist):
                 raise errors.NotFoundError(f"Artist '{artist}' not found.")
 
     def _validate_festival_day(self, performance: Performance) -> None:
@@ -333,16 +368,21 @@ class FestivalManager:
                     f"A performance with id '{performance.id}' already exists."
                 )
 
+    @staticmethod
+    def _has_time_overlap(
+        p1: Performance, p2: Performance, buffer: timedelta = timedelta(minutes=30)
+    ) -> bool:
+        """Returns True if two performances overlap in time including the buffer."""
+        return not (p1.end + buffer <= p2.start or p2.end + buffer <= p1.start)
+
     def _validate_venue_conflict(
         self, performance: Performance, venue: Venue, exclude_id: str | None
     ) -> None:
-        buffer = timedelta(minutes=30)
         for existing in self._performances:
             if existing.id == exclude_id:
                 continue
-            if existing.venue == performance.venue and not (
-                performance.end + buffer <= existing.start
-                or existing.end + buffer <= performance.start
+            if existing.venue == performance.venue and self._has_time_overlap(
+                performance, existing
             ):
                 raise errors.ConflictError(
                     f"{venue.name} is busy with {existing.title} "
@@ -353,16 +393,12 @@ class FestivalManager:
     def _validate_artist_conflict(
         self, performance: Performance, exclude_id: str | None
     ) -> None:
-        buffer = timedelta(minutes=30)
         perf_artists = set(performance.get_all_artists())
         for existing in self._performances:
             if existing.id == exclude_id:
                 continue
             common_artists = perf_artists & set(existing.get_all_artists())
-            if common_artists and not (
-                performance.end + buffer <= existing.start
-                or existing.end + buffer <= performance.start
-            ):
+            if common_artists and self._has_time_overlap(performance, existing):
                 artist_name_map = self.get_artist_slug_to_name_map()
                 names = ", ".join(artist_name_map.get(a, a) for a in common_artists)
                 raise errors.ConflictError(

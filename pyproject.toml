@@ -1,7 +1,7 @@
 [project]
 name = "deauville-festival"
-version = "1.2.0"
-description = "Deauville Festivasl CSM"
+version = "2.0.0"
+description = "Deauville Festival CMS"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

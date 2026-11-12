@@ -58,6 +58,7 @@ class TestUpdatePerformanceSuccess:
 
         assert response.status_code == 200
         data = response.json()
+        assert data["id"] == new_id
         assert data["venue"] == "la-cabane"
         assert data["start"] == "2027-06-10T18:00"
 
@@ -117,9 +118,7 @@ class TestUpdatePerformanceSuccess:
 class TestUpdatePerformanceNotFound:
     """Tests for 404 Not Found errors on `PUT /api/performances/{id}`."""
 
-    def test_nonexistent_performance_id_returns_404(
-        self, client: TestClient
-    ) -> None:
+    def test_nonexistent_performance_id_returns_404(self, client: TestClient) -> None:
         payload = {
             "kind": "solo",
             "title": "Ghost Show",
@@ -267,7 +266,7 @@ class TestUpdatePerformanceConflictAndAtomicity:
         saved_perfs = {
             p.id: p for p in storage.load_data(test_data_path)["performances"]
         }
-        assert saved_perfs[perf_id].artist == "sacha-diallo"  # type: ignore[attr-defined]
+        assert saved_perfs[perf_id].artist == "sacha-diallo"
 
     def test_moving_outside_festival_dates_returns_409(
         self, client: TestClient
@@ -291,4 +290,3 @@ class TestUpdatePerformanceConflictAndAtomicity:
                 "festival (2027-06-10 to 2027-06-13)."
             )
         }
-

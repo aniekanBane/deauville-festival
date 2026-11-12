@@ -10,7 +10,7 @@ def display_festival_info(manager: FestivalManager) -> None:
     """Displays basic information about the festival."""
     festival_info = manager.get_festival_info()
     print(
-        f"{festival_info.name}\n"
+        f"\n{festival_info.name}\n"
         f"From {festival_info.first_day} to {festival_info.last_day}\n"
         f"{festival_info.venue_count} venues, "
         f"{festival_info.artist_count} artists, "
@@ -22,12 +22,30 @@ def display_venues(manager: FestivalManager) -> None:
     """Displays information about the venues."""
     venues = manager.list_venues()
     title = f"Venues: {len(venues)}"
-    print(f"{title}\n{'-' * len(title)}")
+    print(f"\n{title}\n{'-' * len(title)}")
     for venue in venues:
         print(str(venue))
 
     total_capacity = sum(venue.capacity for venue in venues)
     print(f"\nTotal: {total_capacity} seats")
+
+
+def format_artists_lines(manager: FestivalManager) -> list[str]:
+    """Returns formatted lines for artists with their show counts."""
+    artists = manager.list_artists()
+    if not artists:
+        return []
+
+    labels = [str(artist) for artist in artists]
+    max_label_len = max(len(label) for label in labels)
+
+    lines: list[str] = []
+    for artist, label in zip(artists, labels, strict=True):
+        count = len(manager.list_performances(artist_slug=artist.slug))
+        s = "show" if count == 1 else "shows"
+        lines.append(f"{label:<{max_label_len}} | {count} {s}")
+
+    return lines
 
 
 def display_artist_info(manager: FestivalManager, artist_slug: str) -> None:
@@ -63,10 +81,13 @@ def display_artist_info(manager: FestivalManager, artist_slug: str) -> None:
 
 def display_programme(
     manager: FestivalManager,
-    day: date | None = None,
+    day: date | str | None = None,
     venue_slug: str | None = None,
 ) -> None:
     """Displays the programme filtered by day and/or venue."""
+    if isinstance(day, str):
+        day = helpers.date_from_str(day)
+
     performances = manager.list_performances(day=day, venue_slug=venue_slug)
 
     venue_name_map = manager.get_venue_slug_to_name_map()
@@ -185,12 +206,12 @@ def display_performance_details(details: dict[str, Any]) -> None:
             )
         participants = details.get("participants", [])
         if participants:
-            print(f"Participants:  {', '.join(participants)}")
+            print(f"Participants: {', '.join(participants)}")
 
     artists = details.get("artists", [])
     if artists:
         artist_names = ", ".join(f"{a['name']} ({a['slug']})" for a in artists)
-        print(f"Artists:       {artist_names}")
+        print(f"Artists:      {artist_names}")
 
 
 def cancel_performance(manager: FestivalManager, id: str) -> None:
@@ -212,7 +233,7 @@ def parse_min_age(min_age_str: str) -> int:
     min_age_str = min_age_str.strip()
     if min_age_str and not min_age_str.isdigit():
         raise errors.InvalidError(f"'{min_age_str}' is not a valid number of years.")
-    return int(min_age_str)
+    return int(min_age_str) if min_age_str else 0
 
 
 def parse_max_participants(max_participants_str: str) -> int:

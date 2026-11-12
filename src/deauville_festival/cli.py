@@ -8,6 +8,7 @@ from deauville_festival.models import (
     PERFORMANCE_REGISTRY,
     LineupPerformance,
     Performance,
+    PerformanceKind,
     SoloPerformance,
     WorkshopPerformance,
 )
@@ -24,13 +25,8 @@ def display_artists(manager: FestivalManager) -> None:
         print("No artists found.")
         return
 
-    labels = [str(artist) for artist in artists]
-    max_label_len = max(len(label) for label in labels)
-
-    for artist, label in zip(artists, labels, strict=True):
-        count = len(manager.list_performances(artist_slug=artist.slug))
-        s = "show" if count == 1 else "shows"
-        print(f"{label:<{max_label_len}} | {count} {s}")
+    for line in cli_prompts.format_artists_lines(manager):
+        print(line)
 
 
 def display_performance_details(manager: FestivalManager, performance_id: str) -> None:
@@ -43,7 +39,7 @@ def display_performance_details(manager: FestivalManager, performance_id: str) -
     cli_prompts.display_performance_details(performance_details)
 
 
-def add_performance(manager: FestivalManager, kind: str = "solo") -> None:
+def add_performance(manager: FestivalManager, kind: PerformanceKind = "solo") -> None:
     """Prompts for details and adds a performance to the festival."""
     title = Performance.validate_title(input("Title: "))
     venue_slug = Performance.validate_venue(input("Venue (slug): "))
@@ -91,15 +87,10 @@ def add_performance(manager: FestivalManager, kind: str = "solo") -> None:
     line_number = day_performances.index(performance) + 1
 
     def _get_ordinal(n: int) -> str:
-        n_str = str(n)
-        if n_str.endswith("1"):
-            return n_str + "st"
-        elif n_str.endswith("2"):
-            return n_str + "nd"
-        elif n_str.endswith("3"):
-            return n_str + "rd"
-        else:
-            return n_str + "th"
+        if 11 <= (n % 100) <= 13:
+            return f"{n}th"
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+        return f"{n}{suffix}"
 
     print(
         f"Added: {performance.id}, the {_get_ordinal(line_number)} "
@@ -119,14 +110,13 @@ def create_parser() -> argparse.ArgumentParser:
     programme_parser = subparsers.add_parser(
         "programme", help="Display the programme for a specific day."
     )
-    programme_parser.add_argument(
-        "--day",
-        help="The festival day (YYYY-MM-DD).",
+    programme_parser.add_argument("--day", help="The festival day (YYYY-MM-DD).")
+    programme_parser.add_argument("--venue", help="The slug of the venue.")
+
+    performances_parser = subparsers.add_parser(
+        "performances", help="Display information about the performances."
     )
-    programme_parser.add_argument(
-        "--venue",
-        help="The slug of the venue.",
-    )
+    performances_parser.add_argument("id", help="The ID of the performance.")
 
     artists_parser = subparsers.add_parser(
         "artists", help="Display information about the artists."
@@ -138,14 +128,12 @@ def create_parser() -> argparse.ArgumentParser:
         "now", help="Display the performances happening now."
     )
     now_parser.add_argument(
-        "moment",
-        help="The date and time (YYYY-MM-DDTHH:MM).",
+        "moment", nargs="?", help="The date and time (YYYY-MM-DDTHH:MM)."
     )
 
     add_parser = subparsers.add_parser("add", help="Add a new performance.")
     add_parser.add_argument(
         "--kind",
-        "-k",
         choices=["solo", "lineup", "workshop"],
         default="solo",
         help="The kind of performance to add (default: solo).",
@@ -181,8 +169,10 @@ def main() -> int:
                 cli_prompts.display_venues(festival_manager)
             case "programme":
                 cli_prompts.display_programme(
-                    festival_manager, helpers.date_from_str(args.day), args.venue
+                    festival_manager, day=args.day, venue_slug=args.venue
                 )
+            case "performances":
+                display_performance_details(festival_manager, args.id)
             case "artists":
                 if args.add:
                     cli_prompts.add_artist(festival_manager)

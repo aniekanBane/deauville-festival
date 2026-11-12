@@ -1,4 +1,6 @@
 import sys
+import typing
+from collections.abc import Sequence
 
 from pick import pick
 
@@ -12,38 +14,61 @@ from deauville_festival.models import (
 )
 
 INDICATOR = "*> "
+CANCEL_OPT = "< Cancel"
+GO_BACK_OPT = "< Back to Main Menu"
+MAIN_MENU_PROMPT = "\nPress Enter to return to the main menu..."
+ENTER_PROMPT = "\nPress Enter to continue..."
+
+
+def _pick_browse_artists(manager: FestivalManager) -> None:
+    """Lists artists and allows selecting one to view details."""
+    artists = manager.list_artists()
+    if not artists:
+        print("\nNo artists found.")
+        input("Press Enter to return to artists menu...")
+        return
+
+    options = cli_prompts.format_artists_lines(manager)
+    options.append("< Back to Artists Menu")
+
+    title = f"Artists ({len(artists)}) | Select to view details:"
+    _, index = pick(options, title=title, indicator=INDICATOR)
+
+    index = typing.cast(int, index)
+    if index == len(artists):
+        return
+
+    selected_artist = artists[index]
+    cli_prompts.display_artist_info(manager, selected_artist.slug)
+    input("\nPress Enter to return to artists menu...")
+
+
+def _pick_add_artist(manager: FestivalManager) -> None:
+    """Prompts to add a new artist."""
+    try:
+        print("\n--- Add Artist ---")
+        cli_prompts.add_artist(manager)
+    except (ValueError, errors.FestivalError) as err:
+        print(f"Error: {err}", file=sys.stderr)
+    except (KeyboardInterrupt, EOFError):
+        print("\nAdding cancelled.")
+    input("\nPress Enter to return to artists menu...")
 
 
 def pick_artists(manager: FestivalManager) -> None:
-    """Lets the user pick an artist and displays their information."""
+    """Submenu for artists: browse and add new artists."""
+    options = [
+        "Browse artists",
+        "Add new artist",
+        GO_BACK_OPT,
+    ]
+
     while True:
-        artists = manager.list_artists()
-        options: list[str] = []
-
-        if artists:
-            labels = [str(artist) for artist in artists]
-            max_label_len = max(len(label) for label in labels)
-            for artist, label in zip(artists, labels, strict=True):
-                count = len(manager.list_performances(artist_slug=artist.slug))
-                s = "show" if count == 1 else "shows"
-                options.append(f"{label:<{max_label_len}} | {count} {s}")
-
-        options.append("Add new artist")
-        options.append("< Back")
-
-        title = f"Artists ({len(artists)}) | Select to view details:"
-        _, index = pick(options, title=title, indicator=INDICATOR)
-
-        if index < len(artists):
-            selected_artist = artists[index]
-            cli_prompts.display_artist_info(manager, selected_artist.slug)
-            input("\nPress Enter to return to artists...")
-        elif index == len(artists):
-            try:
-                cli_prompts.add_artist(manager)
-            except (ValueError, errors.FestivalError) as err:
-                print(f"Error: {err}", file=sys.stderr)
-            input("\nPress Enter to continue...")
+        _, index = pick(options, title="Artists:", indicator=INDICATOR)
+        if index == 0:
+            _pick_browse_artists(manager)
+        elif index == 1:
+            _pick_add_artist(manager)
         else:
             return
 
@@ -56,27 +81,31 @@ def pick_programme(manager: FestivalManager) -> None:
     while True:
         # Step 1: Select Day
         day_options = (
-            ["All days"] + [d.strftime("%A %d %B %Y") for d in days] + ["< Back"]
+            ["All days"] + [d.strftime("%A %d %B %Y") for d in days] + [GO_BACK_OPT]
         )
         _, day_index = pick(
             day_options,
-            title="Select a day:",
+            title="Programme - Select a day:",
             indicator=INDICATOR,
         )
 
+        day_index = typing.cast(int, day_index)
         if day_index == len(day_options) - 1:
             return
 
         chosen_day = None if day_index == 0 else days[day_index - 1]
 
         # Step 2: Select Venue
-        venue_options = ["All venues"] + [f"{v.name}" for v in venues] + ["< Back"]
+        venue_options = (
+            ["All venues"] + [f"{v.name}" for v in venues] + ["< Back to day selection"]
+        )
         _, venue_index = pick(
             venue_options,
-            title=f"Day: {day_options[day_index]} — Select a venue:",
+            title=f"Programme - Day: {day_options[day_index]} — Select a venue:",
             indicator=INDICATOR,
         )
 
+        venue_index = typing.cast(int, venue_index)
         if venue_index == len(venue_options) - 1:
             continue
 
@@ -86,7 +115,7 @@ def pick_programme(manager: FestivalManager) -> None:
         cli_prompts.display_programme(
             manager, day=chosen_day, venue_slug=chosen_venue_slug
         )
-        input("\nPress Enter to continue...")
+        input("\nPress Enter to return to programme selection...")
 
 
 def pick_on_now(manager: FestivalManager) -> None:
@@ -94,7 +123,7 @@ def pick_on_now(manager: FestivalManager) -> None:
     options = [
         "Current time",
         "Enter custom date and time",
-        "< Back",
+        GO_BACK_OPT,
     ]
     title = "Select moment to check:"
 
@@ -103,7 +132,7 @@ def pick_on_now(manager: FestivalManager) -> None:
 
         if index == 0:
             cli_prompts.display_performances_now(manager)
-            input("\nPress Enter to continue...")
+            input(ENTER_PROMPT)
         elif index == 1:
             raw = input("\nEnter date and time (YYYY-MM-DDTHH:MM): ").strip()
             if not raw:
@@ -112,12 +141,30 @@ def pick_on_now(manager: FestivalManager) -> None:
                 moment = helpers.datetime_from_str(raw)
             except (errors.InvalidDateTimeFormatError, ValueError) as err:
                 print(f"Error: {err}", file=sys.stderr)
-                input("\nPress Enter to continue...")
+                input(ENTER_PROMPT)
                 continue
             cli_prompts.display_performances_now(manager, moment)
-            input("\nPress Enter to continue...")
+            input(ENTER_PROMPT)
         elif index == 2:
             return
+
+
+def format_performance_options(
+    manager: FestivalManager, performances: Sequence[Performance]
+) -> list[str]:
+    """Formats performances into pick-ready option lines aligned by venue name."""
+    if not performances:
+        return []
+
+    venue_name_map = manager.get_venue_slug_to_name_map()
+    venue_name_max_len = max(len(name) for name in venue_name_map.values())
+
+    return [
+        f"{p.start:%a %d %b %H:%M} | "
+        f"{venue_name_map.get(p.venue, p.venue):<{venue_name_max_len}} | "
+        f"{p.title} ({p.kind})"
+        for p in performances
+    ]
 
 
 def pick_browse_performances(manager: FestivalManager) -> None:
@@ -129,20 +176,13 @@ def pick_browse_performances(manager: FestivalManager) -> None:
             input("Press Enter to continue...")
             return
 
-        venue_name_map = manager.get_venue_slug_to_name_map()
-        venue_name_max_len = max(len(name) for name in venue_name_map.values())
-
-        options: list[str] = []
-        for p in performances:
-            v_name = venue_name_map.get(p.venue, p.venue)
-            options.append(
-                f"{p.start:%a %d %b %H:%M} | {v_name:<{venue_name_max_len}} | {p.title} ({p.kind})"
-            )
-        options.append("< Back")
+        options = format_performance_options(manager, performances)
+        options.append("< Back to Performances Menu")
 
         title = f"Performances ({len(performances)}) | Select to view details:"
         _, index = pick(options, title=title, indicator=INDICATOR)
 
+        index = typing.cast(int, index)
         if index == len(performances):
             return
 
@@ -158,7 +198,7 @@ def pick_add_performance(manager: FestivalManager) -> None:
         "Solo Performance",
         "Lineup Performance",
         "Workshop",
-        "< Cancel",
+        CANCEL_OPT,
     ]
     _, kind_index = pick(
         kind_options, title="Select performance type to add:", indicator=INDICATOR
@@ -177,8 +217,10 @@ def pick_add_performance(manager: FestivalManager) -> None:
         print("No venues available.")
         return
 
-    venue_options = [f"{v.name} ({v.slug})" for v in venues] + ["< Cancel"]
+    venue_options = [f"{v.name} ({v.slug})" for v in venues] + [CANCEL_OPT]
     _, v_index = pick(venue_options, title="Select Venue:", indicator=INDICATOR)
+
+    v_index = typing.cast(int, v_index)
     if v_index == len(venues):
         print("Adding cancelled.")
         return
@@ -201,15 +243,17 @@ def pick_add_performance(manager: FestivalManager) -> None:
     performance: Performance
     if kind_index == 0:
         # Solo Performance
-        artist_options = [f"{a.name} ({a.slug})" for a in artists] + ["< Cancel"]
+        artist_options = [f"{a.name} ({a.slug})" for a in artists] + [CANCEL_OPT]
         _, a_index = pick(artist_options, title="Select Artist:", indicator=INDICATOR)
+
+        a_index = typing.cast(int, a_index)
         if a_index == len(artists):
-            print("Adding cancelled.")
+            print("Adding cancelled...")
             return
         chosen_artist_slug = artists[a_index].slug
 
         min_age_input = input("Minimum age (0-18, press Enter for 0): ").strip()
-        min_age = int(min_age_input) if min_age_input.isdigit() else 0
+        min_age = cli_prompts.parse_min_age(min_age_input)
 
         performance = SoloPerformance(
             title=title,
@@ -222,8 +266,10 @@ def pick_add_performance(manager: FestivalManager) -> None:
 
     elif kind_index == 1:
         # Lineup Performance
-        host_options = [f"{a.name} ({a.slug})" for a in artists] + ["< Cancel"]
+        host_options = [f"{a.name} ({a.slug})" for a in artists] + [CANCEL_OPT]
         _, h_index = pick(host_options, title="Select Host:", indicator=INDICATOR)
+
+        h_index = typing.cast(int, h_index)
         if h_index == len(artists):
             print("Adding cancelled.")
             return
@@ -261,15 +307,17 @@ def pick_add_performance(manager: FestivalManager) -> None:
 
     else:
         # Workshop Performance
-        teacher_options = [f"{a.name} ({a.slug})" for a in artists] + ["< Cancel"]
+        teacher_options = [f"{a.name} ({a.slug})" for a in artists] + [CANCEL_OPT]
         _, t_index = pick(teacher_options, title="Select Teacher:", indicator=INDICATOR)
+
+        t_index = typing.cast(int, t_index)
         if t_index == len(artists):
             print("Adding cancelled.")
             return
         chosen_teacher_slug = artists[t_index].slug
 
-        max_participants_input = input("Maximum participants: ").strip()
-        max_participants = int(max_participants_input)
+        max_participants_input = input("Maximum participants (>= 1): ").strip()
+        max_participants = cli_prompts.parse_max_participants(max_participants_input)
 
         performance = WorkshopPerformance(
             title=title,
@@ -279,6 +327,9 @@ def pick_add_performance(manager: FestivalManager) -> None:
             start=start,
             duration_minutes=duration,
         )
+
+    description_input = input("Description: ")
+    performance.description = Performance.validate_description(description_input)
 
     manager.add_performance(performance)
 
@@ -298,20 +349,13 @@ def pick_cancel_performance(manager: FestivalManager) -> None:
         print("\nNo performances found to cancel.")
         return
 
-    venue_name_map = manager.get_venue_slug_to_name_map()
-    venue_name_max_len = max(len(name) for name in venue_name_map.values())
-
-    options: list[str] = []
-    for p in performances:
-        v_name = venue_name_map.get(p.venue, p.venue)
-        options.append(
-            f"{p.start:%a %d %b %H:%M} | {v_name:<{venue_name_max_len}} | {p.title} ({p.kind})"
-        )
-    options.append("< Back")
+    options = format_performance_options(manager, performances)
+    options.append("< Back to Performances Menu")
 
     title = "Select a performance to cancel:"
     _, index = pick(options, title=title, indicator=INDICATOR)
 
+    index = typing.cast(int, index)
     if index == len(performances):
         return
 
@@ -337,7 +381,7 @@ def pick_performances(manager: FestivalManager) -> None:
         "Browse performances",
         "Add new performance",
         "Cancel a performance",
-        "< Back",
+        GO_BACK_OPT,
     ]
     title = "Performances:"
 
@@ -351,13 +395,13 @@ def pick_performances(manager: FestivalManager) -> None:
                 pick_add_performance(manager)
             except (ValueError, errors.FestivalError) as err:
                 print(f"\nError: {err}", file=sys.stderr)
-            input("\nPress Enter to continue...")
+            input(ENTER_PROMPT)
         elif index == 2:
             try:
                 pick_cancel_performance(manager)
             except errors.FestivalError as err:
                 print(f"\nError: {err}", file=sys.stderr)
-            input("\nPress Enter to continue...")
+            input(ENTER_PROMPT)
         elif index == 3:
             return
 
@@ -382,10 +426,10 @@ def run(festival_manager: FestivalManager) -> None:
             return
         if opt == "Festival info":
             cli_prompts.display_festival_info(festival_manager)
-            input("\nPress Enter to continue...")
+            input(MAIN_MENU_PROMPT)
         if opt == "Venues":
             cli_prompts.display_venues(festival_manager)
-            input("\nPress Enter to continue...")
+            input(MAIN_MENU_PROMPT)
         if opt == "Artists":
             pick_artists(festival_manager)
         if opt == "Performances":
