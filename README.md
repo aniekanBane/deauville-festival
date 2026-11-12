@@ -61,9 +61,13 @@ uv run deauville interactive
 uv run deauville venues
 
 # Display programme (optionally filtered by day and/or venue)
+uv run deauville programme
 uv run deauville programme --day 2027-06-11
 uv run deauville programme --venue grand-casino
 uv run deauville programme --day 2027-06-11 --venue grand-casino
+
+# Show details for a specific performance
+uv run deauville performances le-kiosque-2027-06-12-0100
 
 # List artists and their number of performances
 uv run deauville artists
@@ -74,7 +78,7 @@ uv run deauville artists --focus nora-lebrun
 # Add an artist interactively
 uv run deauville artists --add
 
-# Show performances currently on stage and the next three
+# Show performances currently on stage and the next three (defaults to current time)
 uv run deauville now
 uv run deauville now 2027-06-11T21:00
 
@@ -169,7 +173,7 @@ The `web/public/` and `web/admin/` directories contain the static frontends.
 The [tests/](tests/) directory contains model, JSON/SQLite storage, CLI,
 schema, and route tests.
 
-## Testing
+## Testing and Code Quality
 
 Run the complete test suite:
 
@@ -181,14 +185,30 @@ The test configuration is in `pyproject.toml`. Storage tests are grouped in
 [tests/storage/](tests/storage/), and API tests use isolated SQLite databases
 seeded explicitly by their fixtures.
 
-The repository currently contains 330 tests covering helpers, models, JSON and
-SQLite storage, CLI commands, interactive navigation, request schemas, and API routes,
-with 100% test coverage across all core domain, CLI, storage, and API modules (95% total).
-The optional development tools can also be run locally:
+The repository currently contains 379 tests covering helpers, models, JSON and
+SQLite storage, CLI commands, interactive navigation, request/response schemas, annotated types, and API routes,
+with 100% test coverage across all core domain, CLI, storage, and API modules (94% total).
+
+Linting, formatting, and strict type checking can also be run locally:
 
 ```bash
+# Check code style and rules
 uv run ruff check .
-uv run mypy src
+
+# Check code formatting
+uv run ruff format --check .
+
+# Strict type checking across application and test suite
+uv run mypy src tests
+```
+
+### Pre-commit hooks
+
+Git pre-commit hooks can be installed to automatically verify formatting, linting, and type checking before commits:
+
+```bash
+uv run pre-commit install
+uv run pre-commit run --all-files
 ```
 
 ## Continuous integration
@@ -243,11 +263,11 @@ Implemented:
 - the complete festival domain model and validation (solo, lineup, workshop);
 - JSON loading and saving for import/sample data;
 - SQLite schema, persistence, and initial seeding;
-- CLI programme, artist, venue, now-playing, add (solo, lineup, workshop), and cancel commands;
+- CLI programme, artist, venue, now-playing, performance details, add (solo, lineup, workshop), and cancel commands;
 - interactive terminal navigation menu using `pick` (`uv run deauville interactive`);
-- FastAPI read and admin routes described in [API.md](API.md);
+- FastAPI read and admin routes described in [API.md](API.md) with polymorphic performance response models;
 - public and admin static websites;
-- automated tests for helpers, models, storage, CLI, interactive navigation, schemas, and routes (330 tests, 95% total coverage, 100% on core modules).
+- automated tests for helpers, models, storage, CLI, interactive navigation, request/response schemas, annotated types, and routes (379 tests, ~93% total coverage, 100% on core domain, CLI, storage, and API modules).
 
 The CLI and FastAPI application both use SQLite storage. The JSON file is
 kept as portable sample/import data and is used only to seed an empty
