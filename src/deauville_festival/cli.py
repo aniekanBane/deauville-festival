@@ -25,13 +25,8 @@ def display_artists(manager: FestivalManager) -> None:
         print("No artists found.")
         return
 
-    labels = [str(artist) for artist in artists]
-    max_label_len = max(len(label) for label in labels)
-
-    for artist, label in zip(artists, labels, strict=True):
-        count = len(manager.list_performances(artist_slug=artist.slug))
-        s = "show" if count == 1 else "shows"
-        print(f"{label:<{max_label_len}} | {count} {s}")
+    for line in cli_prompts.format_artists_lines(manager):
+        print(line)
 
 
 def display_performance_details(manager: FestivalManager, performance_id: str) -> None:

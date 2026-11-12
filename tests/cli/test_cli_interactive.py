@@ -81,7 +81,10 @@ class TestCliInteractiveCriticalPaths:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        mock_pick(monkeypatch, iter([("Artist 1", 0), ("< Back", 13)]))
+        mock_pick(
+            monkeypatch,
+            iter([("Browse artists", 0), ("Artist 1", 0), ("< Back to Main Menu", 2)]),
+        )
         mock_input(monkeypatch)
 
         cli_interactive.pick_artists(interactive_manager)
