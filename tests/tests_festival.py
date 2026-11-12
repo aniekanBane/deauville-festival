@@ -125,7 +125,7 @@ class TestFestivalManagerPerformances:
             duration_minutes=60,
             artist="sacha-diallo",
         )
-        with pytest.raises(errors.NotFoundError, match="Venue ghost-venue not found"):
+        with pytest.raises(errors.NotFoundError, match="Venue 'ghost-venue' not found"):
             manager.get_performance_details(solo)
 
 

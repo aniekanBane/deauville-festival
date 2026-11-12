@@ -77,7 +77,7 @@ class TestPublicRoutes:
     def test_get_performance_not_found(self, client: TestClient) -> None:
         response = client.get("/api/performances/nonexistent-id")
         assert response.status_code == 404
-        assert response.json()["detail"] == "Performance not found."
+        assert response.json()["detail"] == "Performance 'nonexistent-id' not found."
 
     def test_on_now_with_at_param(self, client: TestClient) -> None:
         response = client.get("/api/now", params={"at": "2027-06-10T21:00"})

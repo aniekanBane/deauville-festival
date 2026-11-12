@@ -1,15 +1,14 @@
 import re
-from collections import Counter
 from datetime import date, datetime
-from typing import Annotated, Literal, Self
+from typing import Annotated, Literal
 
 from pydantic import (
     AfterValidator,
     BaseModel,
     Field,
+    PlainSerializer,
     StringConstraints,
-    field_serializer,
-    model_validator,
+    TypeAdapter,
 )
 
 from deauville_festival import helpers
@@ -25,7 +24,7 @@ from deauville_festival.models import (
 
 
 class FestivalResponse(BaseModel):
-    """Represents basic information about the festival."""
+    """Represents the basic information about the festival."""
 
     name: str = Field(description="The name of the festival.")
     first_day: date = Field(description="The first day of the festival.")
@@ -63,8 +62,11 @@ class ArtistDetailResponse(ArtistOut):
     )
 
 
-class PerformanceResponse(BaseModel):
-    """Represents detailed information about a performance."""
+DateTimeStr = Annotated[datetime, PlainSerializer(helpers.datetime_to_str)]
+
+
+class PerformanceOut(BaseModel):
+    """Represents a performance."""
 
     id: str = Field(description="The unique identifier of the performance.")
     kind: PerformanceKind = Field(
@@ -75,8 +77,10 @@ class PerformanceResponse(BaseModel):
     venue_name: str = Field(
         description="The name of the venue hosting the performance."
     )
-    start: datetime = Field(description="The start date and time of the performance.")
-    end: datetime = Field(description="The end date and time of the performance.")
+    start: DateTimeStr = Field(
+        description="The start date and time of the performance."
+    )
+    end: DateTimeStr = Field(description="The end date and time of the performance.")
     duration_minutes: int = Field(
         description="The duration of the performance in minutes."
     )
@@ -91,40 +95,6 @@ class PerformanceResponse(BaseModel):
     artists: list["ArtistInfo"] = Field(
         description="The list of artists involved in the performance."
     )
-    artist: str | None = Field(
-        default=None, description="The artist's slug (for solo performances)."
-    )
-    min_age: int | None = Field(
-        default=None, description="Minimum age requirement (for solo performances)."
-    )
-    host: str | None = Field(
-        default=None, description="The host's artist slug (for lineup performances)."
-    )
-    acts: list[str] | None = Field(
-        default=None,
-        description="The list of act artist slugs (for lineup performances).",
-    )
-    teacher: str | None = Field(
-        default=None,
-        description="The teacher's artist slug (for workshop performances).",
-    )
-    max_participants: int | None = Field(
-        default=None,
-        description="Maximum number of participants (for workshop performances).",
-    )
-    participants: list[str] | None = Field(
-        default=None,
-        description="List of registered participant names (for workshop performances).",
-    )
-    places_left: int | None = Field(
-        default=None,
-        description="Number of remaining places available (for workshop performances).",
-    )
-
-    @field_serializer("start", "end")
-    def serialize_datetime(self, dt: datetime) -> str:
-        """Serializes a datetime object to a string in the format YYYY-MM-DDTHH:MM."""
-        return helpers.datetime_to_str(dt)
 
     class ArtistInfo(BaseModel):
         """Represents an artist involved in a performance."""
@@ -133,21 +103,50 @@ class PerformanceResponse(BaseModel):
         name: str = Field(description="The name of the artist.")
 
 
+class SoloPerformanceResponse(PerformanceOut):
+    """Represents a solo performance."""
+
+    kind: Literal["solo"]  # pyright: ignore[reportIncompatibleVariableOverride]
+    artist: str = Field(description="The artist's slug.")
+    min_age: int = Field(description="Minimum age requirement.")
+
+
+class LineupPerformanceResponse(PerformanceOut):
+    """Represents a lineup performance."""
+
+    kind: Literal["lineup"]  # pyright: ignore[reportIncompatibleVariableOverride]
+    host: str = Field(description="The host's artist slug.")
+    acts: list[str] = Field(description="The list of act artist slugs.")
+
+
+class WorkshopPerformanceResponse(PerformanceOut):
+    """Represents a workshop performance."""
+
+    kind: Literal["workshop"]  # pyright: ignore[reportIncompatibleVariableOverride]
+    teacher: str = Field(description="The teacher's artist slug.")
+    max_participants: int = Field(description="Maximum number of participants.")
+    participants: list[str] = Field(description="List of registered participant names.")
+    places_left: int = Field(description="Number of remaining places available.")
+
+
+PerformanceResponse = Annotated[
+    SoloPerformanceResponse | LineupPerformanceResponse | WorkshopPerformanceResponse,
+    Field(discriminator="kind"),
+]
+
+performance_response_type_adapter = TypeAdapter(PerformanceResponse)
+
+
 class NowResponse(BaseModel):
     """Represents what is on stage now and up next."""
 
-    at: datetime = Field(description="The current show time.")
+    at: DateTimeStr = Field(description="The current show time.")
     now_playing: list[PerformanceResponse] = Field(
         description="The performances happening now."
     )
     up_next: list[PerformanceResponse] = Field(
         description="The next 3 upcoming performances."
     )
-
-    @field_serializer("at")
-    def serialize_at(self, dt: datetime) -> str:
-        """Serializes a datetime object to a string in the format YYYY-MM-DDTHH:MM."""
-        return helpers.datetime_to_str(dt)
 
 
 RequiredStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -243,28 +242,6 @@ class LineupPerformanceRequest(PerformanceIn):
         description="List of acts' slugs if lineup performance",
     )
 
-    @model_validator(mode="after")
-    def validate_lineup_kind(self) -> Self:
-        if self.host in self.acts:
-            raise ValueError("The host cannot be one of the acts in a lineup.")
-
-        if any(v > 1 for _, v in Counter(self.acts).items()):
-            raise ValueError("Lineup performances cannot have duplicate acts.")
-
-        no_acts = len(self.acts)
-        # 10 minutes per act + 3 minutes between acts
-        min_duration = (no_acts * LineupPerformance.ACT_DURATION_MINUTES) + (
-            (no_acts - 1) * LineupPerformance.ACT_GAP_MINUTES
-        )
-        if self.duration_minutes < min_duration:
-            raise ValueError(
-                f"Duration must be at least {min_duration} minutes long for {no_acts} acts. "
-                f"{LineupPerformance.ACT_DURATION_MINUTES} minutes per act, "
-                f"plus {LineupPerformance.ACT_GAP_MINUTES} minutes between acts."
-            )
-
-        return self
-
 
 class WorkshopPerformanceRequest(PerformanceIn):
     """Represents a workshop performance input."""
@@ -282,69 +259,11 @@ class WorkshopPerformanceRequest(PerformanceIn):
         default_factory=list, description="List of the names of the participants."
     )
 
-    @model_validator(mode="after")
-    def validate_workshop_kind(self) -> Self:
-        if len(self.participants) > self.max_participants:
-            raise ValueError(
-                "The number of participants cannot exceed the maximum number of participants."
-            )
-
-        names = Counter([helpers.get_slug(name) for name in self.participants])
-        if any(v > 1 for _, v in names.items()):
-            raise ValueError("Cannot have duplicate participants.")
-
-        return self
-
 
 PerformanceRequest = Annotated[
     SoloPerformanceRequest | LineupPerformanceRequest | WorkshopPerformanceRequest,
     Field(discriminator="kind"),
 ]
-
-
-class PerformanceInResponse(BaseModel):
-    """Response model for a performance that has be added or modified."""
-
-    id: str = Field(description="The ID of the performance.")
-    kind: PerformanceKind = Field(
-        description="The type of performance ('solo', 'lineup', or 'workshop')."
-    )
-    title: str = Field(description="The title of the performance.")
-    venue: str = Field(description="The slug of the venue hosting the performance.")
-    start: datetime = Field(description="The start date and time of the performance.")
-    duration_minutes: int = Field(
-        description="The duration of the performance in minutes."
-    )
-    artist: str | None = Field(
-        default=None, description="The artist's slug (for solo performances)."
-    )
-    min_age: int | None = Field(
-        default=None, description="Minimum age requirement (for solo performances)."
-    )
-    host: str | None = Field(
-        default=None, description="The host's artist slug (for lineup performances)."
-    )
-    acts: list[str] | None = Field(
-        default=None,
-        description="The list of act artist slugs (for lineup performances).",
-    )
-    teacher: str | None = Field(
-        default=None,
-        description="The teacher's artist slug (for workshop performances).",
-    )
-    max_participants: int | None = Field(
-        default=None,
-        description="Maximum number of participants (for workshop performances).",
-    )
-    participants: list[str] | None = Field(
-        default=None,
-        description="List of registered participant names (for workshop performances).",
-    )
-
-    @field_serializer("start")
-    def serialize_datetime(self, dt: datetime) -> str:
-        """Serializes a datetime object to a string in the format YYYY-MM-DDTHH:MM."""
-        return helpers.datetime_to_str(dt)
 
 
 class RegisterParticipantRequest(BaseModel):

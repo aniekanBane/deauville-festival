@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Path, Query, status
 
 from deauville_festival.api.dependencies import FestivalManageDep
 from deauville_festival.api.schemas import (
@@ -10,7 +10,6 @@ from deauville_festival.api.schemas import (
     ArtistSummaryResponse,
     FestivalResponse,
     NowResponse,
-    PerformanceInResponse,
     PerformanceRequest,
     PerformanceResponse,
     RegisterParticipantRequest,
@@ -18,6 +17,7 @@ from deauville_festival.api.schemas import (
     RequiredStr,
     SlugStr,
     VenueResponse,
+    performance_response_type_adapter,
 )
 from deauville_festival.models import PERFORMANCE_REGISTRY, Artist
 
@@ -61,7 +61,9 @@ def get_artist(
     """Returns an artist and their performances."""
     artist, performances = manager.get_artist_with_performances(artist_slug)
     performance_details = [
-        PerformanceResponse.model_validate(manager.get_performance_details(p))
+        performance_response_type_adapter.validate_python(
+            manager.get_performance_details(p)
+        )
         for p in performances
     ]
 
@@ -82,7 +84,9 @@ def get_programme(
 ) -> list[PerformanceResponse]:
     """Returns the festival programme."""
     return [
-        PerformanceResponse.model_validate(manager.get_performance_details(p))
+        performance_response_type_adapter.validate_python(
+            manager.get_performance_details(p)
+        )
         for p in manager.list_performances(day, venue)
     ]
 
@@ -97,12 +101,7 @@ def get_performance(
 ) -> PerformanceResponse:
     """Returns a performance by its identifier."""
     performance = manager.get_performance_by_id(performance_id)
-    if performance is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Performance not found."
-        )
-
-    return PerformanceResponse.model_validate(
+    return performance_response_type_adapter.validate_python(
         manager.get_performance_details(performance)
     )
 
@@ -119,11 +118,15 @@ def on_now(
     return NowResponse(
         at=moment,
         now_playing=[
-            PerformanceResponse.model_validate(manager.get_performance_details(p))
+            performance_response_type_adapter.validate_python(
+                manager.get_performance_details(p)
+            )
             for p in now_playing
         ],
         up_next=[
-            PerformanceResponse.model_validate(manager.get_performance_details(p))
+            performance_response_type_adapter.validate_python(
+                manager.get_performance_details(p)
+            )
             for p in up_next
         ],
     )
@@ -162,7 +165,7 @@ def add_artist(
 )
 def add_performance(
     request: PerformanceRequest, manager: FestivalManageDep
-) -> PerformanceInResponse:
+) -> PerformanceResponse:
     """Adds a new performance to the festival."""
     performance_data = request.model_dump(exclude={"kind"})
 
@@ -171,7 +174,9 @@ def add_performance(
 
     performance = manager.add_performance(performance)
 
-    return PerformanceInResponse.model_validate(performance, from_attributes=True)
+    return performance_response_type_adapter.validate_python(
+        manager.get_performance_details(performance)
+    )
 
 
 @admin_router.put(
@@ -188,7 +193,7 @@ def update_performance(
     performance_id: Annotated[RequiredStr, Path()],
     request: PerformanceRequest,
     manager: FestivalManageDep,
-) -> PerformanceInResponse:
+) -> PerformanceResponse:
     """Updates an existing performance by its identifier."""
     performance_data = request.model_dump(exclude={"kind"})
 
@@ -197,7 +202,9 @@ def update_performance(
 
     performance = manager.update_performance(performance_id, performance)
 
-    return PerformanceInResponse.model_validate(performance, from_attributes=True)
+    return performance_response_type_adapter.validate_python(
+        manager.get_performance_details(performance)
+    )
 
 
 @admin_router.delete(
